@@ -11,10 +11,12 @@ from ..models.organisation import Organisation
 from ..models.person import Person, Enrolment, person_responsibles
 from ..models.group import Group, GroupMembership
 from ..models.duty import Duty, DutyAssignment
+from ..models.activity import Activity, ActivityTeacher, ActivityGroup
 
 from .lotr_data import (
     ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
-    ORGS, PERSONS, GROUPS
+    TEACHING_GROUPS_DATA, ACTIVITIES_DATA,
+    ORGS, PERSONS, GROUPS, TEACHING_GROUPS
 )
 
 
@@ -41,20 +43,32 @@ async def seed_database():
         # 3. Create guardians (as persons)
         await seed_guardians(session)
 
-        # 4. Create groups
+        # 4. Create groups (class groups)
         await seed_groups(session)
 
-        # 5. Create students (as persons with enrolments)
+        # 5. Create teaching groups
+        await seed_teaching_groups(session)
+
+        # 6. Create students (as persons with enrolments)
         await seed_students(session)
 
-        # 6. Create duties for staff
+        # 7. Create duties for staff
         await seed_duties(session)
 
-        # 7. Create group memberships
+        # 8. Create group memberships
         await seed_memberships(session)
+
+        # 9. Create activities (lessons linking teachers to groups)
+        await seed_activities(session)
 
         await session.commit()
         print("Database seeding complete!")
+        print(f"  - {len(STAFF)} staff members")
+        print(f"  - {len(STUDENTS)} students")
+        print(f"  - {len(GUARDIANS)} guardians")
+        print(f"  - {len(GROUPS_DATA)} class groups")
+        print(f"  - {len(TEACHING_GROUPS_DATA)} teaching groups")
+        print(f"  - {len(ACTIVITIES_DATA)} activities")
 
 
 async def seed_organisations(session: AsyncSession):
@@ -96,7 +110,7 @@ async def seed_staff(session: AsyncSession):
             family_name=staff_data["family_name"],
             middle_name=staff_data.get("middle_name"),
             email=staff_data.get("email"),
-            edu_person_principal_name=staff_data.get("edu_person_principal_name"),
+            edu_person_principal_name=staff_data.get("email"),
             birth_date=staff_data.get("birth_date"),
             sex=staff_data.get("sex"),
             external_id=staff_data.get("external_id"),
@@ -139,7 +153,7 @@ async def seed_guardians(session: AsyncSession):
 
 async def seed_groups(session: AsyncSession):
     """Seed school groups (classes)."""
-    print("  Creating groups...")
+    print("  Creating class groups...")
 
     for group_data in GROUPS_DATA:
         group = Group(
@@ -148,6 +162,24 @@ async def seed_groups(session: AsyncSession):
             group_code=group_data.get("group_code"),
             group_type=group_data["group_type"],
             school_type=group_data.get("school_type"),
+            organisation_id=group_data["organisation_id"],
+            start_date=group_data["start_date"],
+        )
+        session.add(group)
+
+    await session.flush()
+
+
+async def seed_teaching_groups(session: AsyncSession):
+    """Seed teaching groups (Undervisning)."""
+    print("  Creating teaching groups...")
+
+    for group_data in TEACHING_GROUPS_DATA:
+        group = Group(
+            id=group_data["id"],
+            display_name=group_data["display_name"],
+            group_code=group_data.get("group_code"),
+            group_type=group_data["group_type"],
             organisation_id=group_data["organisation_id"],
             start_date=group_data["start_date"],
         )
@@ -236,6 +268,7 @@ async def seed_memberships(session: AsyncSession):
     """Seed group memberships for students."""
     print("  Creating group memberships...")
 
+    # Create class group memberships for students
     for student_data in STUDENTS:
         membership = GroupMembership(
             group_id=student_data["group_id"],
@@ -243,5 +276,64 @@ async def seed_memberships(session: AsyncSession):
             start_date=date(2024, 8, 15),
         )
         session.add(membership)
+
+    # Create teaching group memberships based on class membership
+    # Students in a class are also members of teaching groups that include that class
+    class_to_students = {}
+    for student_data in STUDENTS:
+        class_id = student_data["group_id"]
+        if class_id not in class_to_students:
+            class_to_students[class_id] = []
+        class_to_students[class_id].append(student_data["id"])
+
+    for tg_data in TEACHING_GROUPS_DATA:
+        for class_id in tg_data.get("class_ids", []):
+            for student_id in class_to_students.get(class_id, []):
+                membership = GroupMembership(
+                    group_id=tg_data["id"],
+                    person_id=student_id,
+                    start_date=date(2024, 8, 15),
+                )
+                session.add(membership)
+
+    await session.flush()
+
+
+async def seed_activities(session: AsyncSession):
+    """Seed activities (lessons) linking teachers to teaching groups."""
+    print("  Creating activities...")
+
+    for act_data in ACTIVITIES_DATA:
+        # Create activity
+        activity = Activity(
+            id=act_data["id"],
+            display_name=act_data["display_name"],
+            organisation_id=act_data["organisation_id"],
+            start_date=act_data["start_date"],
+            end_date=act_data.get("end_date"),
+            activity_type=act_data.get("activity_type"),
+            subject_code=act_data.get("subject_code"),
+            subject_name=act_data.get("subject_name"),
+        )
+        session.add(activity)
+        await session.flush()
+
+        # Create teacher assignments
+        for teacher_id in act_data.get("teacher_ids", []):
+            teacher = ActivityTeacher(
+                activity_id=act_data["id"],
+                person_id=teacher_id,
+                start_date=date(2024, 8, 15),
+                allocation_percent=100 // len(act_data.get("teacher_ids", [1])),
+            )
+            session.add(teacher)
+
+        # Create group assignments
+        for group_id in act_data.get("group_ids", []):
+            group = ActivityGroup(
+                activity_id=act_data["id"],
+                group_id=group_id,
+            )
+            session.add(group)
 
     await session.flush()

@@ -9,6 +9,8 @@ venv/
 .env
 *.pem
 *.key
+deploy_key
+deploy_key.pub
 
 # Data
 data/
