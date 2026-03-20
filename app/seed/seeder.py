@@ -1,7 +1,12 @@
 """
-Database seeder for LotR demo data.
-Seeds the database with Middle-earth themed school data.
+Database seeder for demo data.
+Seeds the database with school data from the selected data source.
+
+Set DEMO_SEED_DATA env var to choose data source:
+  carlssons (default) — anonymized production data from Carlssons/Ekbergsskolan
+  lotr                — LotR-themed demo data (fallback)
 """
+import os
 from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,11 +18,26 @@ from ..models.group import Group, GroupMembership
 from ..models.duty import Duty, DutyAssignment
 from ..models.activity import Activity, ActivityTeacher, ActivityGroup
 
-from .lotr_data import (
-    ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
-    TEACHING_GROUPS_DATA, ACTIVITIES_DATA,
-    ORGS, PERSONS, GROUPS, TEACHING_GROUPS
-)
+DATA_SOURCE = os.environ.get("DEMO_SEED_DATA", "carlssons")
+
+if DATA_SOURCE == "carlssons":
+    try:
+        from .carlssons_data import (
+            ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
+            ORGS, PERSONS, GROUPS
+        )
+        # Carlssons data has no teaching groups or activities
+        TEACHING_GROUPS_DATA = []
+        ACTIVITIES_DATA = []
+    except ImportError:
+        DATA_SOURCE = "lotr"  # fall back
+
+if DATA_SOURCE == "lotr":
+    from .lotr_data import (
+        ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
+        TEACHING_GROUPS_DATA, ACTIVITIES_DATA,
+        ORGS, PERSONS, GROUPS, TEACHING_GROUPS
+    )
 
 
 async def seed_database():
@@ -32,7 +52,8 @@ async def seed_database():
             print("Database already seeded, skipping...")
             return
 
-        print("Seeding database with LotR demo data...")
+        source_label = "Carlssons/Ekbergsskolan" if DATA_SOURCE == "carlssons" else "LotR"
+        print(f"Seeding database with {source_label} demo data...")
 
         # 1. Create organisations
         await seed_organisations(session)
@@ -46,8 +67,9 @@ async def seed_database():
         # 4. Create groups (class groups)
         await seed_groups(session)
 
-        # 5. Create teaching groups
-        await seed_teaching_groups(session)
+        # 5. Create teaching groups (if available)
+        if TEACHING_GROUPS_DATA:
+            await seed_teaching_groups(session)
 
         # 6. Create students (as persons with enrolments)
         await seed_students(session)
@@ -58,8 +80,9 @@ async def seed_database():
         # 8. Create group memberships
         await seed_memberships(session)
 
-        # 9. Create activities (lessons linking teachers to groups)
-        await seed_activities(session)
+        # 9. Create activities (if available)
+        if ACTIVITIES_DATA:
+            await seed_activities(session)
 
         await session.commit()
         print("Database seeding complete!")
@@ -67,8 +90,10 @@ async def seed_database():
         print(f"  - {len(STUDENTS)} students")
         print(f"  - {len(GUARDIANS)} guardians")
         print(f"  - {len(GROUPS_DATA)} class groups")
-        print(f"  - {len(TEACHING_GROUPS_DATA)} teaching groups")
-        print(f"  - {len(ACTIVITIES_DATA)} activities")
+        if TEACHING_GROUPS_DATA:
+            print(f"  - {len(TEACHING_GROUPS_DATA)} teaching groups")
+        if ACTIVITIES_DATA:
+            print(f"  - {len(ACTIVITIES_DATA)} activities")
 
 
 async def seed_organisations(session: AsyncSession):
@@ -110,11 +135,11 @@ async def seed_staff(session: AsyncSession):
             family_name=staff_data["family_name"],
             middle_name=staff_data.get("middle_name"),
             email=staff_data.get("email"),
-            edu_person_principal_name=staff_data.get("email"),
+            edu_person_principal_name=staff_data.get("edu_person_principal_name", staff_data.get("email")),
             birth_date=staff_data.get("birth_date"),
             sex=staff_data.get("sex"),
             external_id=staff_data.get("external_id"),
-            external_id_context="http://fake-sis.rivendell.edu",
+            external_id_context="http://demo-sis.example.se",
             street_address=staff_data.get("street_address"),
             postal_code=staff_data.get("postal_code"),
             locality=staff_data.get("locality"),
@@ -140,7 +165,7 @@ async def seed_guardians(session: AsyncSession):
             phone_number=guard_data.get("phone_number"),
             civic_no=guard_data.get("civic_no"),
             external_id=guard_data.get("external_id"),
-            external_id_context="http://fake-sis.rivendell.edu",
+            external_id_context="http://demo-sis.example.se",
             street_address=guard_data.get("street_address"),
             postal_code=guard_data.get("postal_code"),
             locality=guard_data.get("locality"),
@@ -203,18 +228,19 @@ async def seed_students(session: AsyncSession):
             sex=student_data.get("sex"),
             civic_no=student_data.get("civic_no"),
             external_id=student_data.get("external_id"),
-            external_id_context="http://fake-sis.rivendell.edu",
+            external_id_context="http://demo-sis.example.se",
             person_status="Aktiv",
         )
         session.add(person)
         await session.flush()
 
         # Create enrolment
+        school_year = student_data.get("school_year")
         enrolment = Enrolment(
             person_id=student_data["id"],
             organisation_id=student_data["school_unit_id"],
-            school_type="GR" if student_data["school_year"] <= 9 else "GY",
-            school_year=student_data.get("school_year"),
+            school_type="GR" if (school_year or 0) <= 9 else "GY",
+            school_year=school_year,
             start_date=date(2024, 8, 15),
         )
         session.add(enrolment)
@@ -236,11 +262,20 @@ async def seed_duties(session: AsyncSession):
     """Seed staff duties and assignments."""
     print("  Creating duties...")
 
+    # Find the "Skola" org for duty assignments
+    school_org_id = None
+    for org_data in ORGANISATIONS:
+        if org_data["organisation_type"] == "Skola":
+            school_org_id = org_data["id"]
+            break
+    if not school_org_id:
+        school_org_id = ORGANISATIONS[0]["id"]
+
     for staff_data in STAFF:
         # Create duty at the main school
         duty = Duty(
             person_id=staff_data["id"],
-            organisation_id=ORGS["rivendell_academy"],
+            organisation_id=school_org_id,
             duty_role=staff_data["duty_role"],
             description=staff_data.get("description"),
             signature=staff_data.get("signature"),
@@ -270,6 +305,8 @@ async def seed_memberships(session: AsyncSession):
 
     # Create class group memberships for students
     for student_data in STUDENTS:
+        if not student_data.get("group_id"):
+            continue
         membership = GroupMembership(
             group_id=student_data["group_id"],
             person_id=student_data["id"],
@@ -281,7 +318,9 @@ async def seed_memberships(session: AsyncSession):
     # Students in a class are also members of teaching groups that include that class
     class_to_students = {}
     for student_data in STUDENTS:
-        class_id = student_data["group_id"]
+        class_id = student_data.get("group_id")
+        if not class_id:
+            continue
         if class_id not in class_to_students:
             class_to_students[class_id] = []
         class_to_students[class_id].append(student_data["id"])
