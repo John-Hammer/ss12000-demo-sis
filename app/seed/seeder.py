@@ -3,8 +3,8 @@ Database seeder for demo data.
 Seeds the database with school data from the selected data source.
 
 Set DEMO_SEED_DATA env var to choose data source:
-  carlssons (default) — anonymized production data from Carlssons/Ekbergsskolan
-  lotr                — LotR-themed demo data (fallback)
+  schoolsoft (default) — anonymized SchoolSoft data with teaching groups + activities
+  carlssons            — anonymized production data from Carlssons/Ekbergsskolan (no activities)
 """
 import os
 from datetime import date
@@ -18,7 +18,17 @@ from ..models.group import Group, GroupMembership
 from ..models.duty import Duty, DutyAssignment
 from ..models.activity import Activity, ActivityTeacher, ActivityGroup
 
-DATA_SOURCE = os.environ.get("DEMO_SEED_DATA", "carlssons")
+DATA_SOURCE = os.environ.get("DEMO_SEED_DATA", "schoolsoft")
+
+if DATA_SOURCE == "schoolsoft":
+    try:
+        from .schoolsoft_data import (
+            ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
+            TEACHING_GROUPS_DATA, ACTIVITIES_DATA,
+            ORGS, PERSONS, GROUPS, TEACHING_GROUPS
+        )
+    except ImportError:
+        DATA_SOURCE = "carlssons"  # fall back
 
 if DATA_SOURCE == "carlssons":
     try:
@@ -26,18 +36,10 @@ if DATA_SOURCE == "carlssons":
             ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
             ORGS, PERSONS, GROUPS
         )
-        # Carlssons data has no teaching groups or activities
         TEACHING_GROUPS_DATA = []
         ACTIVITIES_DATA = []
     except ImportError:
-        DATA_SOURCE = "lotr"  # fall back
-
-if DATA_SOURCE == "lotr":
-    from .lotr_data import (
-        ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
-        TEACHING_GROUPS_DATA, ACTIVITIES_DATA,
-        ORGS, PERSONS, GROUPS, TEACHING_GROUPS
-    )
+        raise ImportError("No seed data available. Generate with: python -m scripts.build_from_schoolsoft")
 
 
 async def seed_database():
@@ -52,7 +54,11 @@ async def seed_database():
             print("Database already seeded, skipping...")
             return
 
-        source_label = "Carlssons/Ekbergsskolan" if DATA_SOURCE == "carlssons" else "LotR"
+        source_labels = {
+            "schoolsoft": "SchoolSoft (anonymized)",
+            "carlssons": "Carlssons/Ekbergsskolan",
+        }
+        source_label = source_labels.get(DATA_SOURCE, DATA_SOURCE)
         print(f"Seeding database with {source_label} demo data...")
 
         # 1. Create organisations
