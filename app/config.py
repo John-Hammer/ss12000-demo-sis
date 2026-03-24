@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     api_description: str = "Demo School Information System implementing SS12000 standard"
     api_version: str = "2.1.0"
 
+    # Admin UI
+    admin_username: str = "lordph8"
+    admin_password: str = "7H3_4r73575"
+    admin_secret: str = "demo-admin-secret-change-in-production"
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8080

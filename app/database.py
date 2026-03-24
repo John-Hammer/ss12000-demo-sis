@@ -1,6 +1,7 @@
 """
 SQLAlchemy async database setup for Fake SIS.
 """
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from .config import get_settings
@@ -13,6 +14,10 @@ engine = create_async_engine(
     echo=settings.debug,
     future=True,
 )
+
+# Sync engine for SQLAdmin (it requires sync access)
+_sync_url = settings.database_url.replace("sqlite+aiosqlite", "sqlite")
+sync_engine = create_engine(_sync_url, echo=False)
 
 # Session factory
 async_session_maker = async_sessionmaker(

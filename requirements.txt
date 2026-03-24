@@ -14,5 +14,9 @@ pydantic-settings>=2.1.0
 # JWT Authentication
 python-jose[cryptography]>=3.3.0
 
+# Admin UI
+sqladmin>=0.16.0
+itsdangerous>=2.0
+
 # HTTP client (for testing)
 httpx>=0.26.0

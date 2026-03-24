@@ -59,6 +59,7 @@ async def root():
         "version": settings.api_version,
         "description": settings.api_description,
         "docs": "/docs",
+        "admin": "/admin/",
         "endpoints": {
             "auth": "/token",
             "organisations": "/v2/organisations",
@@ -75,3 +76,8 @@ from .api.v2.router import router as api_v2_router
 
 app.include_router(auth_router)
 app.include_router(api_v2_router, prefix="/v2")
+
+# Admin UI at /admin/
+from .database import sync_engine
+from .admin import setup_admin
+setup_admin(app, sync_engine)
