@@ -90,6 +90,9 @@ async def seed_database():
         if ACTIVITIES_DATA:
             await seed_activities(session)
 
+        # 10. Mark two students as protected (for sekretessmarkering testing)
+        await seed_protected_students(session)
+
         await session.commit()
         print("Database seeding complete!")
         print(f"  - {len(STAFF)} staff members")
@@ -380,5 +383,33 @@ async def seed_activities(session: AsyncSession):
                 group_id=group_id,
             )
             session.add(group)
+
+    await session.flush()
+
+
+async def seed_protected_students(session: AsyncSession):
+    """Mark two students as protected for sekretessmarkering testing."""
+    print("  Setting protected student markers...")
+
+    # Pick two students that have group memberships and guardians
+    # ext_id 1620 = Bo Nordberg (class 1a, 2 guardians)
+    # ext_id 1273 = student in class 5a (different year group)
+    protected = [
+        ("1620", "Sekretessmarkering"),
+        ("1273", "Skyddad folkbokföring"),
+    ]
+
+    for ext_id, marking in protected:
+        # Find the student's person UUID from seed data
+        for s in STUDENTS:
+            if s.get("external_id") == ext_id:
+                result = await session.execute(
+                    select(Person).filter(Person.id == s["id"])
+                )
+                person = result.scalar_one_or_none()
+                if person:
+                    person.security_marking = marking
+                    print(f"    {person.given_name} {person.family_name} → {marking}")
+                break
 
     await session.flush()
