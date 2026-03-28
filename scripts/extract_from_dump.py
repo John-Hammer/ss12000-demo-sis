@@ -58,6 +58,12 @@ def parse_value(val: str) -> Optional[str]:
     val = val.replace("\\r", "\r")
     val = val.replace("\\t", "\t")
     val = val.replace("\x00", "\\")
+    # Fix UTF-8 → cp437 → UTF-8 mojibake (common with pg_dump on Windows).
+    # Swedish chars like ä ö å get double-encoded: "Lärare" → "L├ñrare".
+    try:
+        val = val.encode("cp437").decode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        pass
     return val
 
 
