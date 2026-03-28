@@ -90,17 +90,37 @@ def map_all(data: dict, seed: int = 42) -> dict:
         roles = staff_roles.get(s["user_id"], [])
         duty_role = _map_duty_role(roles)
 
-        mapped_staff.append({
+        anon_email = anonymize_email_staff(seed, anon_first, anon_last)
+        civic_no = anonymize_personnummer(seed, s["staff_id"], s.get("socialnumber"))
+        birth_date = _parse_date(s.get("birthday"))
+
+        has_phone = s.get("mobile") or s.get("workphone") or s.get("homephone")
+        has_address = s.get("address1") or s.get("pocode")
+
+        staff_entry = {
             "id": uid,
             "given_name": anon_first,
             "family_name": anon_last,
-            "email": anonymize_email_staff(seed, anon_first, anon_last),
+            "email": anon_email,
+            "edu_person_principal_name": anon_email,
             "duty_role": duty_role,
             "signature": anonymize_signature(anon_last),
             "description": duty_role,
             "sex": gender or "Man",
+            "civic_no": civic_no,
+            "birth_date": birth_date,
             "external_id": make_uuid(seed, "ext_staff", s["staff_id"]),
-        })
+        }
+
+        if has_phone:
+            staff_entry["phone_number"] = anonymize_phone(seed, s["staff_id"])
+        if has_address:
+            street, postal, city = anonymize_address(seed, s["staff_id"])
+            staff_entry["street_address"] = street
+            staff_entry["postal_code"] = postal
+            staff_entry["locality"] = city
+
+        mapped_staff.append(staff_entry)
 
     # --- 3. Map students ---
     mapped_students = []

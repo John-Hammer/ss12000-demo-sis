@@ -8,6 +8,7 @@ Usage:
 import argparse
 import sys
 import os
+import uuid
 import textwrap
 from datetime import date
 
@@ -183,6 +184,48 @@ def _format_kv(key: str, value, result: dict) -> str:
         return f'"{key}": "{escaped}"'
 
 
+ADMIN_NAMESPACE = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+
+def _inject_admin(result: dict, name: str, email: str):
+    """Inject a named admin staff member (Rektor) into the result.
+
+    This person is NOT anonymized — used for real login testing.
+    """
+    parts = name.strip().split(None, 1)
+    given_name = parts[0]
+    family_name = parts[1] if len(parts) > 1 else ""
+
+    person_id = str(uuid.uuid5(ADMIN_NAMESPACE, f"admin:{email}"))
+    sig = (family_name[:3] if family_name else given_name[:3]).upper()
+
+    admin_entry = {
+        "id": person_id,
+        "given_name": given_name,
+        "family_name": family_name,
+        "email": email,
+        "edu_person_principal_name": email,
+        "duty_role": "Rektor",
+        "signature": sig,
+        "description": "Rektor",
+        "sex": "Man",
+        "civic_no": None,
+        "birth_date": None,
+        "phone_number": None,
+        "street_address": None,
+        "postal_code": None,
+        "locality": None,
+        "external_id": f"admin_{email.split('@')[0]}",
+    }
+
+    result["STAFF"].insert(0, admin_entry)
+
+    # Add to PERSONS lookup
+    key = f"staff_{given_name.lower()}_{family_name.lower()}"
+    key = key.replace(" ", "_").replace("-", "_")
+    result["PERSONS"][key] = person_id
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Anonymize a skolSköld production database dump"
@@ -197,7 +240,15 @@ def main():
     )
     parser.add_argument(
         "--output", default=None,
-        help="Output file path (default: app/seed/anon_data.py)"
+        help="Output file path (default: app/seed/schoolsoft_data.py)"
+    )
+    parser.add_argument(
+        "--admin-name", default=None,
+        help="Admin staff name, e.g. 'John Hammer' (injected un-anonymized)"
+    )
+    parser.add_argument(
+        "--admin-email", default=None,
+        help="Admin staff email, e.g. 'john@skolskold.se'"
     )
 
     args = parser.parse_args()
@@ -208,7 +259,7 @@ def main():
 
     output_path = args.output or os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "app", "seed", "anon_data.py"
+        "app", "seed", "schoolsoft_data.py"
     )
 
     print(f"Parsing dump: {args.dump}")
@@ -220,6 +271,11 @@ def main():
 
     print(f"\nAnonymizing with seed={args.seed}...")
     result = map_all(data, seed=args.seed)
+
+    # Inject admin staff if requested
+    if args.admin_name and args.admin_email:
+        print(f"\nInjecting admin: {args.admin_name} ({args.admin_email})")
+        _inject_admin(result, args.admin_name, args.admin_email)
 
     print(f"\nMapped entities:")
     print(f"  Organisations: {len(result['ORGANISATIONS'])}")
