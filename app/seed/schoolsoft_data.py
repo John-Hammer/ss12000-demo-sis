@@ -135,6 +135,7 @@ PERSONS = {
     "staff_243": "a139cf5c-acad-5a08-88da-f31f94e3e4d6",
     "staff_330": "fa02688b-a42a-5c43-83fc-3962f963bad7",
     "staff_306": "aa29dcc5-886a-50d2-9bc1-99993f4b0a0c",
+    "staff_9999": "43b75126-07dd-5271-a722-bd1f9f9ea282",
 }
 
 GROUPS = {
@@ -2170,6 +2171,16 @@ STAFF = [
         "external_id": '306',
         "duty_role": 'Lärare',
         "signature": 'matfal',
+    },
+    {
+        "id": '43b75126-07dd-5271-a722-bd1f9f9ea282',
+        "given_name": 'John',
+        "family_name": 'Hammer',
+        "email": 'john@skolsköld.se',
+        "edu_person_principal_name": 'john@skolsköld.se',
+        "external_id": '9999',
+        "duty_role": 'Rektor',
+        "signature": 'johham',
     },
 ]
 
