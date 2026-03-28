@@ -388,28 +388,31 @@ async def seed_activities(session: AsyncSession):
 
 
 async def seed_protected_students(session: AsyncSession):
-    """Mark two students as protected for sekretessmarkering testing."""
+    """Mark two students as protected for sekretessmarkering testing.
+
+    Picks students that have group memberships and guardians,
+    regardless of which data source generated the seed data.
+    """
     print("  Setting protected student markers...")
 
-    # Pick two students that have group memberships and guardians
-    # ext_id 1620 = Bo Nordberg (class 1a, 2 guardians)
-    # ext_id 1273 = student in class 5a (different year group)
-    protected = [
-        ("1620", "Sekretessmarkering"),
-        ("1273", "Skyddad folkbokföring"),
+    markings = ["Sekretessmarkering", "Skyddad folkbokf\u00f6ring"]
+
+    # Find students with both a group_id and at least one guardian
+    candidates = [
+        s for s in STUDENTS
+        if s.get("group_id") and s.get("guardian_ids")
     ]
 
-    for ext_id, marking in protected:
-        # Find the student's person UUID from seed data
-        for s in STUDENTS:
-            if s.get("external_id") == ext_id:
-                result = await session.execute(
-                    select(Person).filter(Person.id == s["id"])
-                )
-                person = result.scalar_one_or_none()
-                if person:
-                    person.security_marking = marking
-                    print(f"    {person.given_name} {person.family_name} -> {marking}")
-                break
+    for i, marking in enumerate(markings):
+        if i >= len(candidates):
+            break
+        student_data = candidates[i]
+        result = await session.execute(
+            select(Person).filter(Person.id == student_data["id"])
+        )
+        person = result.scalar_one_or_none()
+        if person:
+            person.security_marking = marking
+            print(f"    {person.given_name} {person.family_name} -> {marking}")
 
     await session.flush()
