@@ -409,7 +409,7 @@ async def seed_protected_students(session: AsyncSession):
                 person = result.scalar_one_or_none()
                 if person:
                     person.security_marking = marking
-                    print(f"    {person.given_name} {person.family_name} → {marking}")
+                    print(f"    {person.given_name} {person.family_name} -> {marking}")
                 break
 
     await session.flush()

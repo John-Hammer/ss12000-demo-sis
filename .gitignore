@@ -20,6 +20,10 @@ data/
 *.sql
 skolskold_backup*
 
+# Original TSV/CSV exports (contain real PII — never commit)
+Schoolsoft_TSV/
+comvius_csv/
+
 # IDE
 .vscode/
 .idea/
