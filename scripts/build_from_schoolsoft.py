@@ -4,7 +4,13 @@ Convert SchoolSoft TSV exports into SS12000 seed data for the demo SIS.
 Reads TSV files from a directory (staff.txt, students.txt, parents.txt, groups.txt, lessons.txt)
 and generates app/seed/schoolsoft_data.py with all entities mapped to SS12000 format.
 
+Supports PII anonymization (--anonymize) for use with original/production data.
+
 Usage:
+    # From original data with anonymization (recommended):
+    python -m scripts.build_from_schoolsoft --tsv-dir Schoolsoft_TSV --anonymize --seed 42
+
+    # From pre-anonymized demo data:
     python -m scripts.build_from_schoolsoft --tsv-dir ../skolSköld/demo_schoolsoft_tsv
 """
 import argparse
@@ -12,9 +18,15 @@ import csv
 import hashlib
 import re
 import uuid
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date
 from pathlib import Path
+
+from .anonymizer import (
+    anonymize_first_name, anonymize_last_name, anonymize_personnummer,
+    anonymize_email_staff, anonymize_email_student, anonymize_email_guardian,
+    anonymize_phone, anonymize_address, anonymize_signature, anonymize_username,
+)
 
 
 # --- Deterministic UUID generation ---
@@ -40,30 +52,71 @@ STAFF_TYPE_TO_DUTY_ROLE = {
 # --- Lesson subject code mapping ---
 
 SUBJECT_CODE_MAP = {
+    # Core subjects
     "Sv": ("SV", "Svenska"),
     "Sven": ("SVA", "Svenska som andraspråk"),
+    "sva 1-9": ("SVA", "Svenska som andraspråk"),
     "Ma": ("MA", "Matematik"),
     "En": ("EN", "Engelska"),
+    # SO block
     "So": ("SO", "Samhällsorienterande ämnen"),
+    "Hi": ("HI", "Historia"),
+    "Ge": ("GE", "Geografi"),
+    "Re": ("RE", "Religionskunskap"),
+    "Sh": ("SH", "Samhällskunskap"),
+    # NO block
     "NO": ("NO", "Naturorienterande ämnen"),
+    "No-lab": ("NO", "Naturorienterande ämnen"),
+    "Bi": ("BI", "Biologi"),
+    "Fy": ("FY", "Fysik"),
+    "Ke": ("KE", "Kemi"),
+    # Practical / aesthetic
     "Idh": ("IDH", "Idrott och hälsa"),
     "Mu": ("MU", "Musik"),
     "Bl": ("BL", "Bild"),
     "Sl": ("SL", "Slöjd"),
     "Hkk": ("HKK", "Hem- och konsumentkunskap"),
+    "Tk": ("TK", "Teknik"),
+    # Languages
+    "Sp": ("ML-SP", "Moderna språk - Spanska"),
+    "C-språk sp": ("ML-SP", "Moderna språk - Spanska"),
+    "fr": ("ML-FR", "Moderna språk - Franska"),
+    "C-språk fr": ("ML-FR", "Moderna språk - Franska"),
+    "Ty": ("ML-TY", "Moderna språk - Tyska"),
+    "C-språk ty": ("ML-TY", "Moderna språk - Tyska"),
+    "C-språk md": ("ML", "Moderna språk"),
+    "Modersmål": ("MOD", "Modersmål"),
+    # Other teaching
     "Tema": ("TEMA", "Tema"),
     "Retorik": ("RET", "Retorik"),
-    "Sp": ("ML-SP", "Moderna språk - Spanska"),
-    "fr": ("ML-FR", "Moderna språk - Franska"),
-    "Ty": ("ML-TY", "Moderna språk - Tyska"),
-    "Tk": ("TK", "Teknik"),
+    "kör": ("KOR", "Kör"),
+    "Ensemble": ("ENS", "Ensemble"),
 }
 
 SKIP_SUBJECTS = {
+    # Non-teaching / admin
     "Lektion", "Lunch", "Rast", "Vikarieanskaffning", "Klassråd",
     "Elevrapport F-3", "Elevrapport 4-6", "Elevrapport 7-9",
-    "Elevråd", "STÖDLÄXLÄSNING", "Samverkan åk 1", "Samverkan åk 2",
-    "Samverkan åk 3", "SamvIdh", "Resurs 7",
+    "Elevråd", "elevråd", "STÖDLÄXLÄSNING",
+    # Staff meetings / collaboration
+    "Samverkan åk 1", "Samverkan åk 2", "Samverkan åk 3", "Samverkan åk F",
+    "Samverkan", "SamvIdh", "SamvHÄLSA",
+    "A-lagskonferens åk 1", "A-lagskonferens åk 2", "A-lagskonferens åk 3",
+    "A-lagskonferens åk 4", "A-lagskonferens åk 5", "A-lagskonferens åk 6",
+    "A-lagskonferens åk 7", "A-lagskonferens åk 8", "A-lagskonferens åk 9",
+    "A-lagskonferens åk F",
+    "EHM", "EHM ÅK 1",
+    # Admin / non-lesson
+    "Adm", "Arbetstid", "Studietid",
+    "Trygghetsdag", "SkV Utflykt", "No-dag",
+    "Rörelse", "Skapande f-klass",
+    "Omprovstid åk 7-9", "Ta igen tid 4-6", "Ta igen tid 7-9",
+    "Resurs 4", "Resurs 5", "Resurs 7", "Resurs 8",
+    # Special math groups (sub-groups, not standalone activities)
+    "specma4", "specma5", "specma6",
+    "specma4PL", "specma5PL", "specma6ÅP",
+    # Other non-teaching
+    "mentor", "Utmaning", "RV",
 }
 
 
@@ -126,6 +179,54 @@ def determine_school_year(class_name: str) -> int | None:
     if m:
         return int(m.group(1))
     return None
+
+
+def infer_mentors_from_lessons(
+    lesson_rows: list[dict],
+    class_names: set[str],
+    staff_by_username: dict[str, str],
+    group_mentor_map: dict[str, list[str]],
+) -> None:
+    """Infer mentors for class groups that have no teacher assignment in groups.txt.
+
+    Finds the teacher with the most lesson occurrences for each class
+    and assigns them as mentor.
+    """
+    classes_needing_mentors = {cn for cn, mentors in group_mentor_map.items() if not mentors}
+    if not classes_needing_mentors:
+        return
+
+    skip_days = {"", "blank", "sat", "sun", "lör", "sön", "saturday", "sunday"}
+    teacher_class_counts: Counter = Counter()
+
+    for row in lesson_rows:
+        day = row.get("day", "").strip().lower()
+        teacher_str = row.get("teacher", "").strip()
+        group_str = row.get("group", "").strip()
+
+        if day in skip_days or not teacher_str or not group_str:
+            continue
+
+        teachers = [t.strip() for t in teacher_str.split(",") if t.strip()]
+        groups = [g.strip() for g in group_str.split(",") if g.strip()]
+
+        for teacher in teachers:
+            if teacher not in staff_by_username:
+                continue
+            for g in groups:
+                mapped = map_group_to_class(g, class_names)
+                if mapped and mapped in classes_needing_mentors:
+                    teacher_class_counts[(teacher, mapped)] += 1
+
+    # Pick the teacher with the most lessons per class
+    best: dict[str, tuple[str, int]] = {}
+    for (teacher, class_name), count in teacher_class_counts.items():
+        if class_name not in best or count > best[class_name][1]:
+            best[class_name] = (teacher, count)
+
+    for class_name, (teacher_username, _count) in best.items():
+        teacher_id = staff_by_username[teacher_username]
+        group_mentor_map[class_name] = [teacher_id]
 
 
 def build_data(tsv_dir: Path) -> dict:
@@ -265,8 +366,6 @@ def build_data(tsv_dir: Path) -> dict:
             if pid:
                 mentor_ids.append(pid)
 
-        # Pick first teacher as the primary mentor
-        mentor_id = mentor_ids[0] if mentor_ids else None
         group_mentor_map[name] = mentor_ids
 
         school_year = determine_school_year(name)
@@ -280,8 +379,16 @@ def build_data(tsv_dir: Path) -> dict:
             "school_type": school_type,
             "organisation_id": org_grundskola_id,
             "start_date": "2024-08-15",
-            "mentor_id": mentor_id,
+            "mentor_id": None,  # assigned after mentor inference
         })
+
+    # --- Infer mentors for classes without teacher assignments ---
+    infer_mentors_from_lessons(lesson_rows, class_names, staff_by_username, group_mentor_map)
+
+    # Assign mentor_id to groups from (possibly inferred) mentor map
+    for g in groups_data:
+        mentors = group_mentor_map.get(g["display_name"], [])
+        g["mentor_id"] = mentors[0] if mentors else None
 
     # Assign group_id to students
     for s in student_list:
@@ -452,6 +559,129 @@ def build_data(tsv_dir: Path) -> dict:
     }
 
 
+# --- Anonymization ---
+
+
+def apply_anonymization(data: dict, seed: int) -> dict:
+    """Apply deterministic PII anonymization to all person data.
+
+    Anonymizes names, civic numbers, emails, phones, addresses.
+    Preserves all IDs, relationships, and structural data.
+    """
+    staff_name_map = {}  # person_id -> (anon_first, anon_last, anon_username)
+
+    # Anonymize staff
+    for s in data["staff"]:
+        oid = s["external_id"]
+        gender = s.get("sex")
+
+        anon_first = anonymize_first_name(seed, oid, gender)
+        anon_last = anonymize_last_name(seed, oid)
+        anon_user = anonymize_username(seed, anon_first, anon_last)
+        staff_name_map[s["id"]] = (anon_first, anon_last, anon_user)
+
+        s["given_name"] = anon_first
+        s["family_name"] = anon_last
+        s["email"] = anonymize_email_staff(seed, anon_first, anon_last)
+        s["edu_person_principal_name"] = s["email"]
+        s["civic_no"] = anonymize_personnummer(seed, oid, s.get("civic_no"))
+        if s.get("civic_no"):
+            bd = birth_date_from_civic(s["civic_no"])
+            if bd:
+                s["birth_date"] = bd
+        if s.get("phone_number"):
+            s["phone_number"] = anonymize_phone(seed, oid)
+        if s.get("street_address"):
+            street, postal, city = anonymize_address(seed, oid)
+            s["street_address"] = street
+            s["postal_code"] = postal
+            s["locality"] = city
+        s["signature"] = anonymize_signature(anon_last)
+
+    # Anonymize students
+    for s in data["students"]:
+        oid = s["external_id"]
+        gender = s.get("sex")
+
+        anon_first = anonymize_first_name(seed, oid, gender)
+        anon_last = anonymize_last_name(seed, oid)
+
+        s["given_name"] = anon_first
+        s["family_name"] = anon_last
+        s["email"] = anonymize_email_student(seed, anon_first, anon_last)
+        s["civic_no"] = anonymize_personnummer(seed, oid, s.get("civic_no"))
+        if s.get("civic_no"):
+            bd = birth_date_from_civic(s["civic_no"])
+            if bd:
+                s["birth_date"] = bd
+
+    # Anonymize guardians
+    for g in data["guardians"]:
+        oid = g["external_id"]
+
+        anon_first = anonymize_first_name(seed, oid)
+        anon_last = anonymize_last_name(seed, oid)
+
+        g["given_name"] = anon_first
+        g["family_name"] = anon_last
+        g["email"] = anonymize_email_guardian(seed, anon_first, anon_last)
+        if g.get("phone_number"):
+            g["phone_number"] = anonymize_phone(seed, oid)
+        if g.get("street_address"):
+            street, postal, city = anonymize_address(seed, oid)
+            g["street_address"] = street
+            g["postal_code"] = postal
+            g["locality"] = city
+
+    # Update activity display names with anonymized teacher names
+    for a in data["activities_data"]:
+        teacher_id = a["teacher_ids"][0] if a.get("teacher_ids") else None
+        if teacher_id and teacher_id in staff_name_map:
+            _, _, anon_user = staff_name_map[teacher_id]
+            subject_name = a.get("subject_name", "")
+            a["display_name"] = f"{subject_name} - {anon_user}"
+
+    return data
+
+
+# --- Admin staff injection ---
+
+
+def inject_admin_staff(data: dict, name: str, email: str) -> dict:
+    """Inject a named admin staff member (Rektor) into the data.
+
+    This person is NOT anonymized — used for real login testing.
+    """
+    parts = name.strip().split(None, 1)
+    given_name = parts[0]
+    family_name = parts[1] if len(parts) > 1 else ""
+
+    person_id = make_uuid("staff", f"admin:{email}")
+
+    admin_staff = {
+        "id": person_id,
+        "given_name": given_name,
+        "family_name": family_name,
+        "email": email,
+        "edu_person_principal_name": email,
+        "civic_no": None,
+        "birth_date": None,
+        "phone_number": None,
+        "street_address": None,
+        "postal_code": None,
+        "locality": None,
+        "external_id": f"admin_{email.split('@')[0]}",
+        "duty_role": "Rektor",
+        "signature": family_name[:3].upper() if family_name else given_name[:3].upper(),
+    }
+
+    data["staff"].insert(0, admin_staff)
+    return data
+
+
+# --- Output generation ---
+
+
 DATE_FIELDS = {"birth_date", "start_date", "end_date"}
 
 
@@ -589,6 +819,11 @@ def main():
     parser = argparse.ArgumentParser(description="Convert SchoolSoft TSV to SS12000 seed data")
     parser.add_argument("--tsv-dir", required=True, help="Directory with SchoolSoft TSV files")
     parser.add_argument("--output", default="app/seed/schoolsoft_data.py", help="Output Python file")
+    parser.add_argument("--anonymize", action="store_true", default=False,
+                        help="Anonymize PII (names, civic numbers, emails, phones, addresses)")
+    parser.add_argument("--seed", type=int, default=42, help="Anonymization seed (default: 42)")
+    parser.add_argument("--admin-name", default=None, help="Admin staff name (e.g. 'John Hammer')")
+    parser.add_argument("--admin-email", default=None, help="Admin staff email (e.g. 'john@skolskold.se')")
     args = parser.parse_args()
 
     tsv_dir = Path(args.tsv_dir)
@@ -604,10 +839,27 @@ def main():
     print(f"Reading SchoolSoft TSV data from {tsv_dir}...")
     data = build_data(tsv_dir)
 
+    # Inject admin staff (before anonymization so they don't get anonymized)
+    if args.admin_name and args.admin_email:
+        print(f"  Injecting admin: {args.admin_name} ({args.admin_email})")
+        inject_admin_staff(data, args.admin_name, args.admin_email)
+
+    # Apply anonymization if requested
+    if args.anonymize:
+        print(f"  Anonymizing PII (seed={args.seed})...")
+        # Protect admin from anonymization
+        admin_entry = None
+        if args.admin_name and args.admin_email:
+            admin_entry = data["staff"].pop(0)  # remove admin before anonymizing
+        apply_anonymization(data, args.seed)
+        if admin_entry:
+            data["staff"].insert(0, admin_entry)  # re-insert unanonymized admin
+
+    groups_with_mentors = sum(1 for g in data["groups_data"] if g.get("mentor_id"))
     print(f"  Staff:           {len(data['staff'])}")
     print(f"  Students:        {len(data['students'])}")
     print(f"  Guardians:       {len(data['guardians'])}")
-    print(f"  Class groups:    {len(data['groups_data'])}")
+    print(f"  Class groups:    {len(data['groups_data'])} ({groups_with_mentors} with mentors)")
     print(f"  Teaching groups: {len(data['teaching_groups_data'])}")
     print(f"  Activities:      {len(data['activities_data'])}")
     print(f"  Organisations:   {len(data['organisations'])}")
