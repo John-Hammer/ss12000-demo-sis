@@ -15,6 +15,7 @@ deploy_key.pub
 # Data
 data/
 *.db
+*.sqlite3
 
 # Database dumps (contain real PII)
 *.sql
@@ -22,7 +23,17 @@ skolskold_backup*
 
 # Original TSV/CSV exports (contain real PII — never commit)
 Schoolsoft_TSV/
+Schoolsoft_tsv/
 comvius_csv/
+comvius_demo/
+
+# Pre-anonymized data (generated from original)
+demo_csv/
+demo_schoolsoft_tsv/
+
+# Anonymization outputs (regenerable)
+comvius_anon/
+*_mapping.json
 
 # IDE
 .vscode/
