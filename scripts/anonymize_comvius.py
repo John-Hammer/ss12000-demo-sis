@@ -146,39 +146,56 @@ def build_comvius_scrubber(name_map: dict) -> 'ComviusScrubber':
     """Build a name scrubber from Comvius People name mappings."""
     import re
 
-    pairs = {}
+    # Full names (highest priority — specific enough to not need word boundaries)
+    full_name_pairs = {}
     for cid, (orig, anon) in name_map.items():
         if orig and anon and orig != anon:
-            pairs[orig] = anon
+            full_name_pairs[orig] = anon
 
-    # Also add individual first and last names
+    # Individual names (need word boundaries to avoid matching inside Swedish words)
+    word_pairs = {}
     for cid, (orig, anon) in name_map.items():
         orig_parts = orig.split()
         anon_parts = anon.split()
         if len(orig_parts) >= 2 and len(anon_parts) >= 2:
-            # Last name
-            if orig_parts[-1] not in pairs:
-                pairs[orig_parts[-1]] = anon_parts[-1]
-            # First name (only if distinctive enough)
-            if len(orig_parts[0]) >= 4 and orig_parts[0] not in pairs:
-                pairs[orig_parts[0]] = anon_parts[0]
+            # Last name — only 5+ chars to be safe
+            ln = orig_parts[-1]
+            if len(ln) >= 5 and ln not in word_pairs and ln not in full_name_pairs:
+                word_pairs[ln] = anon_parts[-1]
+            # First name — only 5+ chars
+            fn = orig_parts[0]
+            if len(fn) >= 5 and fn not in word_pairs and fn not in full_name_pairs:
+                word_pairs[fn] = anon_parts[0]
 
-    # School name replacements
-    pairs["Carlssons"] = "Demoskolan"
-    pairs["carlssons"] = "demoskolan"
-    pairs["carlssonsskola.se"] = "demoskolan.se"
-    pairs["S_CARLSSONS"] = "S_DEMOSKOLAN"
-    pairs["A_CARLSSONS"] = "A_DEMOSKOLAN"
-    pairs["KL_CARLSSONS"] = "KL_DEMOSKOLAN"
-    pairs["FR_CARLSSONS"] = "FR_DEMOSKOLAN"
-    pairs["Carlssons Skola"] = "Demoskolan"
+    # School name replacements (exact, no word boundary)
+    school_pairs = {
+        "carlssonsskola.se": "skolskold.se",
+        "Carlssons Skola": "Demoskolan",
+        "Carlssons": "Demoskolan",
+        "carlssons": "demoskolan",
+        "S_CARLSSONS": "S_DEMOSKOLAN",
+        "A_CARLSSONS": "A_DEMOSKOLAN",
+        "KL_CARLSSONS": "KL_DEMOSKOLAN",
+        "FR_CARLSSONS": "FR_DEMOSKOLAN",
+    }
 
-    # Sort by length descending
-    sorted_pairs = sorted(pairs.items(), key=lambda x: len(x[0]), reverse=True)
     patterns = []
-    for real, fake in sorted_pairs:
+
+    # School names first (exact match, longest first)
+    for real, fake in sorted(school_pairs.items(), key=lambda x: len(x[0]), reverse=True):
+        patterns.append((re.compile(re.escape(real), re.IGNORECASE), fake))
+
+    # Full names (longest first, no word boundary)
+    for real, fake in sorted(full_name_pairs.items(), key=lambda x: len(x[0]), reverse=True):
         try:
             patterns.append((re.compile(re.escape(real), re.IGNORECASE), fake))
+        except re.error:
+            continue
+
+    # Individual names with word boundaries
+    for real, fake in sorted(word_pairs.items(), key=lambda x: len(x[0]), reverse=True):
+        try:
+            patterns.append((re.compile(r'\b' + re.escape(real) + r'\b', re.IGNORECASE), fake))
         except re.error:
             continue
 
@@ -253,7 +270,7 @@ def main():
     # Build scrubber and email map from People results
     patterns = build_comvius_scrubber(name_map)
 
-    # Build email map: original email -> anonymized email
+    # Build email map: original email -> anonymized email (use alias for staff)
     email_map = {}
     with open(people_in, "r", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
@@ -261,9 +278,23 @@ def main():
             orig_email = (row.get("Mail") or "").strip()
             if not orig_email:
                 continue
-            anon = match_comvius_person(row, registry, args.seed)
-            if anon["Mail"]:
-                email_map[orig_email] = anon["Mail"]
+            pnr = row.get("SocSecNo", "").strip()
+            comvius_id = row.get("Id", "").strip()
+            # Look up the person to get alias email for staff
+            p = None
+            if pnr:
+                p = registry.by_pnr(pnr)
+            if not p and comvius_id:
+                p = registry.by_comvius_id(comvius_id)
+            if p and p.anon_email_alias:
+                # Staff: map to alias (firstname.lastname@skolskold.se) which matches auth_user.email
+                email_map[orig_email] = p.anon_email_alias
+            elif p and p.anon_email:
+                email_map[orig_email] = p.anon_email
+            else:
+                anon = match_comvius_person(row, registry, args.seed)
+                if anon["Mail"]:
+                    email_map[orig_email] = anon["Mail"]
 
     # Step 2: Anonymize other CSV files
     csv_configs = {

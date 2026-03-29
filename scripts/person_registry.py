@@ -188,6 +188,7 @@ class PersonRegistry:
                 "anon_last": p.anon_last,
                 "anon_pnr": p.anon_pnr,
                 "anon_email": p.anon_email,
+                "anon_email_alias": p.anon_email_alias,
                 "anon_phone": p.anon_phone,
                 "anon_username": p.anon_username,
                 "anon_signature": p.anon_signature,
@@ -197,11 +198,9 @@ class PersonRegistry:
                 "comvius_id": p.comvius_id,
                 "user_id": p.user_id,
             }
-        # PNR index: orig_normalized_pnr -> anon_pnr
+        # PNR index: orig_normalized_pnr -> person_key (for rebuilding on load)
         for norm_pnr, pkey in self._pnr_index.items():
-            p = self.persons[pkey]
-            if p.anon_pnr:
-                out["pnr_index"][norm_pnr] = p.anon_pnr
+            out["pnr_index"][norm_pnr] = pkey
         with open(path, "w", encoding="utf-8") as f:
             json.dump(out, f, ensure_ascii=False, indent=2)
 
@@ -219,6 +218,7 @@ class PersonRegistry:
                 anon_last=pdata.get("anon_last"),
                 anon_pnr=pdata.get("anon_pnr"),
                 anon_email=pdata.get("anon_email"),
+                anon_email_alias=pdata.get("anon_email_alias"),
                 anon_phone=pdata.get("anon_phone"),
                 anon_username=pdata.get("anon_username"),
                 anon_signature=pdata.get("anon_signature"),
@@ -234,13 +234,8 @@ class PersonRegistry:
             if p.user_id:
                 reg._user_id_index[str(p.user_id)] = key
         reg._email_index = data.get("email_index", {})
-        # Rebuild PNR index from pnr_index data
-        for norm_pnr, _ in data.get("pnr_index", {}).items():
-            # Find person by scanning (PNR stored in anon form only in mapping)
-            # We need original PNR -> person key, which we stored in pnr_index
-            pass
-        # Store raw pnr mapping for direct lookups
-        reg._raw_pnr_map = data.get("pnr_index", {})
+        # Rebuild PNR index: norm_pnr -> person_key
+        reg._pnr_index = data.get("pnr_index", {})
         return reg
 
     def get_pnr_mapping(self) -> dict[str, str]:
