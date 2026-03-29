@@ -88,34 +88,39 @@ def anonymize_personnummer(seed: int, original_id: str, original_pnr: Optional[s
     return f"{date_part}{sep}{new_digits}"
 
 
-def anonymize_email_staff(seed: int, anon_first: str, anon_last: str) -> str:
-    """Generate anonymized staff email."""
-    first = anon_first.lower().replace(" ", "").replace("-", "")
-    last = anon_last.lower().replace(" ", "").replace("-", "")
-    # Handle Swedish chars
+def _clean_name_for_email(name: str) -> str:
+    """Clean a name for use in email addresses."""
+    name = name.lower().replace(" ", "").replace("-", "")
     for old, new in [("å", "a"), ("ä", "a"), ("ö", "o"), ("é", "e"), ("ü", "u")]:
-        first = first.replace(old, new)
-        last = last.replace(old, new)
-    return f"{first}.{last}@demoskolan.se"
+        name = name.replace(old, new)
+    return name
+
+
+def anonymize_email_staff(seed: int, anon_first: str, anon_last: str) -> str:
+    """Generate anonymized staff email: firlast@skolskold.se"""
+    first = _clean_name_for_email(anon_first)[:3]
+    last = _clean_name_for_email(anon_last)[:3]
+    return f"{first}{last}@skolskold.se"
+
+
+def anonymize_email_staff_alias(seed: int, anon_first: str, anon_last: str) -> str:
+    """Generate staff email alias: firstname.lastname@skolskold.se"""
+    first = _clean_name_for_email(anon_first)
+    last = _clean_name_for_email(anon_last)
+    return f"{first}.{last}@skolskold.se"
 
 
 def anonymize_email_student(seed: int, anon_first: str, anon_last: str) -> str:
-    """Generate anonymized student email."""
-    first = anon_first.lower().replace(" ", "").replace("-", "")[:3]
-    last = anon_last.lower().replace(" ", "").replace("-", "")[:3]
-    for old, new in [("å", "a"), ("ä", "a"), ("ö", "o"), ("é", "e"), ("ü", "u")]:
-        first = first.replace(old, new)
-        last = last.replace(old, new)
-    return f"{first}{last}@student.demoskolan.se"
+    """Generate anonymized student email: firlast@student.skolskold.se"""
+    first = _clean_name_for_email(anon_first)[:3]
+    last = _clean_name_for_email(anon_last)[:3]
+    return f"{first}{last}@student.skolskold.se"
 
 
 def anonymize_email_guardian(seed: int, anon_first: str, anon_last: str) -> str:
     """Generate anonymized guardian email."""
-    first = anon_first.lower().replace(" ", "").replace("-", "")
-    last = anon_last.lower().replace(" ", "").replace("-", "")
-    for old, new in [("å", "a"), ("ä", "a"), ("ö", "o"), ("é", "e"), ("ü", "u")]:
-        first = first.replace(old, new)
-        last = last.replace(old, new)
+    first = _clean_name_for_email(anon_first)
+    last = _clean_name_for_email(anon_last)
     return f"{first}.{last}@example.se"
 
 

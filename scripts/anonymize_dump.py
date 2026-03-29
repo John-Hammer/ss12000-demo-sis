@@ -202,7 +202,8 @@ def anonymize_row(
         if p:
             set_val("first_name", p.anon_first)
             set_val("last_name", p.anon_last)
-            set_val("email", p.anon_email)
+            # auth_user.email gets the alias (firstname.lastname@skolskold.se)
+            set_val("email", p.anon_email_alias or p.anon_email)
             set_val("username", p.anon_username)
         set_val("password", STATIC_PASSWORD)
 
@@ -210,17 +211,16 @@ def anonymize_row(
         staff_id = get("id")
         p = registry.by_key("staff", staff_id) if staff_id else None
         if p:
-            set_val("socialnumber", p.anon_pnr)
-            set_val("email", p.anon_email)
-            set_val("mobile", p.anon_phone if get("mobile") else None)
-            set_val("workphone", p.anon_phone if get("workphone") else None)
-            set_val("homephone", None)
-            if get("address1"):
-                set_val("address1", p.anon_street)
-                set_val("address2", None)
-                set_val("pocode", p.anon_postal)
-                set_val("city", p.anon_city)
-            set_val("signature", p.anon_signature)
+            set_val("socialnumber", p.anon_pnr or "")
+            set_val("email", p.anon_email or "")
+            set_val("mobile", p.anon_phone if get("mobile") else "")
+            set_val("workphone", p.anon_phone if get("workphone") else "")
+            set_val("homephone", "")
+            set_val("address1", p.anon_street if get("address1") else "")
+            set_val("address2", "")
+            set_val("pocode", p.anon_postal if get("pocode") else "")
+            set_val("city", p.anon_city if get("city") else "")
+            set_val("signature", p.anon_signature or "")
         set_val("data_hash", "anonymized")
 
     elif table == "students_student":
@@ -229,20 +229,18 @@ def anonymize_row(
         if p:
             set_val("first_name", p.anon_first)
             set_val("last_name", p.anon_last)
-            set_val("socialnumber", p.anon_pnr)
-            set_val("email", p.anon_email)
-            set_val("username", p.anon_username)
-            if get("phone"):
-                set_val("phone", p.anon_phone)
-            if get("address"):
-                set_val("address", p.anon_street)
-                set_val("postal_code", p.anon_postal)
-                set_val("city", p.anon_city)
-            # Clear sensitive alias/protection fields
-            set_val("alias_first_name", None)
-            set_val("alias_last_name", None)
-            set_val("protection_notes", None)
-            set_val("gdpr_notes", None)
+            set_val("socialnumber", p.anon_pnr or "")
+            set_val("email", p.anon_email or "")
+            set_val("username", p.anon_username or "")
+            set_val("phone", p.anon_phone if get("phone") else "")
+            set_val("address", p.anon_street if get("address") else "")
+            set_val("postal_code", p.anon_postal if get("postal_code") else "")
+            set_val("city", p.anon_city if get("city") else "")
+            # Clear sensitive alias/protection fields (use empty string, not NULL)
+            set_val("alias_first_name", "")
+            set_val("alias_last_name", "")
+            set_val("protection_notes", "")
+            set_val("gdpr_notes", "")
         set_val("data_hash", "anonymized")
 
     elif table == "parents_parent":
@@ -251,17 +249,15 @@ def anonymize_row(
         if p:
             set_val("first_name", p.anon_first)
             set_val("last_name", p.anon_last)
-            set_val("personnummer", p.anon_pnr)
-            set_val("email", p.anon_email)
-            if get("mobile"):
-                set_val("mobile", p.anon_phone)
-            set_val("work_phone", None)
-            set_val("home_phone", None)
-            if get("address1"):
-                set_val("address1", p.anon_street)
-                set_val("address2", None)
-                set_val("postcode", p.anon_postal)
-                set_val("city", p.anon_city)
+            set_val("personnummer", p.anon_pnr or "")
+            set_val("email", p.anon_email or "")
+            set_val("mobile", p.anon_phone if get("mobile") else "")
+            set_val("work_phone", "")
+            set_val("home_phone", "")
+            set_val("address1", p.anon_street if get("address1") else "")
+            set_val("address2", "")
+            set_val("postcode", p.anon_postal if get("postcode") else "")
+            set_val("city", p.anon_city if get("city") else "")
         set_val("data_hash", "anonymized")
 
     elif table == "parents_parentemail":
@@ -287,22 +283,22 @@ def anonymize_row(
             set_val("username", scrubber.scrub(username))
 
     elif table == "documents_fileaccesslog":
-        set_val("microsoft_user_email", None)
-        set_val("microsoft_user_name", None)
+        set_val("microsoft_user_email", "")
+        set_val("microsoft_user_name", "")
 
     elif table == "users_userprofile":
-        set_val("microsoft_photo_url", None)
-        set_val("microsoft_upn", None)
-        set_val("email_aliases", None)
-        set_val("last_known_ip", None)
-        set_val("last_location_city", None)
-        set_val("last_location_country", None)
-        set_val("trusted_ips", None)
+        set_val("microsoft_photo_url", "")
+        set_val("microsoft_upn", "")
+        set_val("email_aliases", "")
+        set_val("last_known_ip", "")
+        set_val("last_location_city", "")
+        set_val("last_location_country", "")
+        set_val("trusted_ips", "")
 
     elif table == "auditlog_userconnectionlog":
         set_val("ip_address", "127.0.0.1")
-        set_val("city", None)
-        set_val("region", None)
+        set_val("city", "")
+        set_val("region", "")
 
     elif table == "django_session":
         set_val("session_data", "")
@@ -318,17 +314,17 @@ def anonymize_row(
                 set_val("sender_email", scrubber.scrub(sender))
 
     elif table == "core_secretexpirationnotification":
-        set_val("sent_to", None)
+        set_val("sent_to", "")
 
     # --- School name replacement in settings ---
     if table == "core_schoolsettings":
         set_val("school_name", "Demoskolan")
         set_val("school_code", "DEMO")
-        set_val("contact_email", "info@demoskolan.se")
+        set_val("contact_email", "info@skolskold.se")
         set_val("contact_phone", "08-123 00 00")
         set_val("address", "Storgatan 1, 111 22 Stockholm")
-        set_val("email_domain", "demoskolan.se")
-        set_val("email_pattern", "{first}.{last}@demoskolan.se")
+        set_val("email_domain", "skolskold.se")
+        set_val("email_pattern", "{first:.3}{last:.3}@skolskold.se")
         set_val("is_demo", "t")
 
     elif table == "imports_datamapping":
@@ -337,11 +333,11 @@ def anonymize_row(
         if ext_ref:
             set_val("external_ref", scrubber.scrub(ext_ref))
 
-    # --- NULL out secret columns ---
+    # --- Clear secret columns (use empty string to avoid NOT NULL violations) ---
     if table in NULL_COLUMNS:
         for col in NULL_COLUMNS[table]:
             if col in col_map:
-                set_val(col, None)
+                set_val(col, "")
 
     # --- Scrub free-text columns ---
     if table in SCRUB_COLUMNS:

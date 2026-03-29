@@ -12,7 +12,8 @@ from typing import Optional
 
 from .anonymizer import (
     anonymize_first_name, anonymize_last_name, anonymize_personnummer,
-    anonymize_email_staff, anonymize_email_student, anonymize_email_guardian,
+    anonymize_email_staff, anonymize_email_staff_alias,
+    anonymize_email_student, anonymize_email_guardian,
     anonymize_phone, anonymize_address, anonymize_signature, anonymize_username,
 )
 from .extract_from_dump import get_active_staff, get_staff_roles
@@ -36,6 +37,7 @@ class PersonRecord:
     anon_last: Optional[str] = None
     anon_pnr: Optional[str] = None
     anon_email: Optional[str] = None
+    anon_email_alias: Optional[str] = None  # Staff: firstname.lastname@skolskold.se
     anon_phone: Optional[str] = None
     anon_username: Optional[str] = None
     anon_signature: Optional[str] = None
@@ -136,6 +138,7 @@ class PersonRegistry:
 
             if p.entity_type == "staff":
                 p.anon_email = anonymize_email_staff(seed, p.anon_first, p.anon_last)
+                p.anon_email_alias = anonymize_email_staff_alias(seed, p.anon_first, p.anon_last)
                 p.anon_signature = anonymize_signature(p.anon_last)
             elif p.entity_type == "student":
                 p.anon_email = anonymize_email_student(seed, p.anon_first, p.anon_last)
@@ -324,7 +327,7 @@ class NameScrubber:
         pairs["carlssons"] = "demoskolan"
         pairs["Carlssonsskola"] = "Demoskolan"
         pairs["carlssonsskola"] = "demoskolan"
-        pairs["carlssonsskola.se"] = "demoskolan.se"
+        pairs["carlssonsskola.se"] = "skolskold.se"
 
         # Sort by length descending so "Anna Karlsson" matches before "Anna"
         sorted_pairs = sorted(pairs.items(), key=lambda x: len(x[0]), reverse=True)
