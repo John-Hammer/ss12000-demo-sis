@@ -250,6 +250,10 @@ def main():
         "--admin-email", default=None,
         help="Admin staff email, e.g. 'john@skolskold.se'"
     )
+    parser.add_argument(
+        "--pre-anonymized", action="store_true",
+        help="Input dump is already anonymized; skip PII anonymization, only do structural mapping"
+    )
 
     args = parser.parse_args()
 
@@ -269,8 +273,9 @@ def main():
     for table, rows in sorted(data.items()):
         print(f"  {table}: {len(rows)} rows")
 
-    print(f"\nAnonymizing with seed={args.seed}...")
-    result = map_all(data, seed=args.seed)
+    mode = "structural mapping only (pre-anonymized)" if args.pre_anonymized else f"anonymizing with seed={args.seed}"
+    print(f"\n{mode}...")
+    result = map_all(data, seed=args.seed, pre_anonymized=args.pre_anonymized)
 
     # Inject admin staff if requested
     if args.admin_name and args.admin_email:

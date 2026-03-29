@@ -42,10 +42,16 @@ SCHOOL_START = date(2024, 8, 15)
 ORG_START = date(2024, 1, 1)
 
 
-def map_all(data: dict, seed: int = 42) -> dict:
+def map_all(data: dict, seed: int = 42, pre_anonymized: bool = False) -> dict:
     """
     Transform extracted production data into SS12000 demo SIS format.
     Returns a dict with all the entities needed for anon_data.py.
+
+    Args:
+        data: Extracted production data from extract_tables().
+        seed: Random seed for deterministic anonymization/UUID generation.
+        pre_anonymized: If True, skip PII anonymization (data is already clean).
+                        Still generates UUID5 IDs and does structural mapping.
     """
     # Get filtered/joined production data
     students = get_active_students(data)
@@ -83,19 +89,33 @@ def map_all(data: dict, seed: int = 42) -> dict:
         staff_user_id_map[s["user_id"]] = uid
 
         gender = _guess_gender_staff(s)
-        anon_first = anonymize_first_name(seed, s["staff_id"], gender)
-        anon_last = anonymize_last_name(seed, s["staff_id"])
+
+        if pre_anonymized:
+            anon_first = s["first_name"]
+            anon_last = s["last_name"]
+            anon_email = s["email"]
+            civic_no = s.get("socialnumber")
+            sig = s.get("signature") or (anon_last[:3].upper() if anon_last else "")
+            phone = s.get("mobile") or s.get("workphone")
+            street = s.get("address1")
+            postal = s.get("pocode")
+            city_val = s.get("city")
+        else:
+            anon_first = anonymize_first_name(seed, s["staff_id"], gender)
+            anon_last = anonymize_last_name(seed, s["staff_id"])
+            anon_email = anonymize_email_staff(seed, anon_first, anon_last)
+            civic_no = anonymize_personnummer(seed, s["staff_id"], s.get("socialnumber"))
+            sig = anonymize_signature(anon_last)
+            phone = anonymize_phone(seed, s["staff_id"]) if (s.get("mobile") or s.get("workphone") or s.get("homephone")) else None
+            if s.get("address1") or s.get("pocode"):
+                street, postal, city_val = anonymize_address(seed, s["staff_id"])
+            else:
+                street = postal = city_val = None
 
         # Determine duty role from auth groups
         roles = staff_roles.get(s["user_id"], [])
         duty_role = _map_duty_role(roles)
-
-        anon_email = anonymize_email_staff(seed, anon_first, anon_last)
-        civic_no = anonymize_personnummer(seed, s["staff_id"], s.get("socialnumber"))
         birth_date = _parse_date(s.get("birthday"))
-
-        has_phone = s.get("mobile") or s.get("workphone") or s.get("homephone")
-        has_address = s.get("address1") or s.get("pocode")
 
         staff_entry = {
             "id": uid,
@@ -104,7 +124,7 @@ def map_all(data: dict, seed: int = 42) -> dict:
             "email": anon_email,
             "edu_person_principal_name": anon_email,
             "duty_role": duty_role,
-            "signature": anonymize_signature(anon_last),
+            "signature": sig,
             "description": duty_role,
             "sex": gender or "Man",
             "civic_no": civic_no,
@@ -112,13 +132,12 @@ def map_all(data: dict, seed: int = 42) -> dict:
             "external_id": make_uuid(seed, "ext_staff", s["staff_id"]),
         }
 
-        if has_phone:
-            staff_entry["phone_number"] = anonymize_phone(seed, s["staff_id"])
-        if has_address:
-            street, postal, city = anonymize_address(seed, s["staff_id"])
+        if phone:
+            staff_entry["phone_number"] = phone
+        if street:
             staff_entry["street_address"] = street
             staff_entry["postal_code"] = postal
-            staff_entry["locality"] = city
+            staff_entry["locality"] = city_val
 
         mapped_staff.append(staff_entry)
 
@@ -156,8 +175,17 @@ def map_all(data: dict, seed: int = 42) -> dict:
         student_id_map[s["id"]] = uid
 
         gender = _normalize_gender(s.get("gender"))
-        anon_first = anonymize_first_name(seed, s["id"], gender)
-        anon_last = anonymize_last_name(seed, s["id"])
+
+        if pre_anonymized:
+            anon_first = s.get("first_name", "")
+            anon_last = s.get("last_name", "")
+            anon_email = s.get("email") or ""
+            civic_no = s.get("socialnumber")
+        else:
+            anon_first = anonymize_first_name(seed, s["id"], gender)
+            anon_last = anonymize_last_name(seed, s["id"])
+            anon_email = anonymize_email_student(seed, anon_first, anon_last)
+            civic_no = anonymize_personnummer(seed, s["id"], s.get("socialnumber"))
 
         # Determine school year and school unit
         year_val = s.get("year")
@@ -183,14 +211,11 @@ def map_all(data: dict, seed: int = 42) -> dict:
         # Parse birth date
         birth_date = _parse_date(s.get("birthday"))
 
-        # Parse civic number
-        civic_no = anonymize_personnummer(seed, s["id"], s.get("socialnumber"))
-
         mapped_students.append({
             "id": uid,
             "given_name": anon_first,
             "family_name": anon_last,
-            "email": anonymize_email_student(seed, anon_first, anon_last),
+            "email": anon_email,
             "guardian_ids": guardian_orig_ids,  # Will be resolved later
             "group_id": class_group_id,  # Will be resolved later
             "school_unit_id": school_unit_id,
@@ -209,22 +234,32 @@ def map_all(data: dict, seed: int = 42) -> dict:
         parent_id_map[p["id"]] = uid
 
         gender = _guess_gender_parent(p)
-        anon_first = anonymize_first_name(seed, p["id"], gender)
-        anon_last = anonymize_last_name(seed, p["id"])
 
-        street, postal, city = anonymize_address(seed, p["id"])
-        phone = anonymize_phone(seed, p["id"])
+        if pre_anonymized:
+            anon_first = p.get("first_name", "")
+            anon_last = p.get("last_name", "")
+            anon_email = p.get("email") or ""
+            phone = p.get("mobile") or ""
+            street = p.get("address1") or ""
+            postal = p.get("postcode") or ""
+            city_val = p.get("city") or ""
+        else:
+            anon_first = anonymize_first_name(seed, p["id"], gender)
+            anon_last = anonymize_last_name(seed, p["id"])
+            anon_email = anonymize_email_guardian(seed, anon_first, anon_last)
+            phone = anonymize_phone(seed, p["id"])
+            street, postal, city_val = anonymize_address(seed, p["id"])
 
         mapped_guardians.append({
             "id": uid,
             "given_name": anon_first,
             "family_name": anon_last,
-            "email": anonymize_email_guardian(seed, anon_first, anon_last),
+            "email": anon_email,
             "phone_number": phone,
             "external_id": make_uuid(seed, "ext_parent", p["id"]),
             "street_address": street,
             "postal_code": postal,
-            "locality": city,
+            "locality": city_val,
             "sex": gender or "Man",
         })
 

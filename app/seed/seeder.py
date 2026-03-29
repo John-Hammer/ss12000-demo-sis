@@ -36,8 +36,12 @@ if DATA_SOURCE == "carlssons":
             ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
             ORGS, PERSONS, GROUPS
         )
-        TEACHING_GROUPS_DATA = []
-        ACTIVITIES_DATA = []
+        # Teaching groups and activities are optional for carlssons data
+        try:
+            from .carlssons_data import TEACHING_GROUPS_DATA, ACTIVITIES_DATA, TEACHING_GROUPS
+        except ImportError:
+            TEACHING_GROUPS_DATA = []
+            ACTIVITIES_DATA = []
     except ImportError:
         raise ImportError("No seed data available. Generate with: python -m scripts.build_from_schoolsoft")
 

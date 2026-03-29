@@ -67,12 +67,17 @@ def parse_value(val: str) -> Optional[str]:
     return val
 
 
-def extract_tables(dump_path: str) -> dict[str, list[dict]]:
+def extract_tables(dump_path: str, tables: list[str] = None) -> dict[str, list[dict]]:
     """
     Parse a pg_dump SQL file and extract specified tables.
 
+    Args:
+        dump_path: Path to the pg_dump SQL file.
+        tables: Optional list of table names to extract. If None, uses TABLES_TO_EXTRACT.
+
     Returns: {table_name: [{"col1": val1, "col2": val2, ...}, ...]}
     """
+    target_tables = set(tables) if tables else set(TABLES_TO_EXTRACT)
     results = {}
     current_table = None
     current_columns = None
@@ -85,7 +90,7 @@ def extract_tables(dump_path: str) -> dict[str, list[dict]]:
             match = COPY_PATTERN.match(line)
             if match:
                 table_name = match.group(1)
-                if table_name in TABLES_TO_EXTRACT:
+                if table_name in target_tables:
                     columns_str = match.group(2)
                     current_table = table_name
                     current_columns = [
