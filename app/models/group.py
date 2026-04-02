@@ -68,6 +68,8 @@ class Group(Base):
             "organisation": {"id": self.organisation_id},
         }
 
+        if self.group_code:
+            result["groupCode"] = self.group_code
         if self.end_date:
             result["endDate"] = self.end_date.isoformat()
         if self.school_type:

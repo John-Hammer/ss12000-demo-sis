@@ -151,6 +151,7 @@ async def seed_staff(session: AsyncSession):
             edu_person_principal_name=staff_data.get("edu_person_principal_name", staff_data.get("email")),
             birth_date=staff_data.get("birth_date"),
             sex=staff_data.get("sex"),
+            civic_no=staff_data.get("civic_no"),
             external_id=staff_data.get("external_id"),
             external_id_context="http://demo-sis.example.se",
             street_address=staff_data.get("street_address"),

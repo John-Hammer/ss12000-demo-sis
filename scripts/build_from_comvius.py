@@ -628,7 +628,10 @@ def build_seed_data(comvius: dict) -> dict:
     TEACHING_GROUPS_DATA = []
     TEACHING_GROUPS = {}
 
-    # Build teaching groups from FG_ enrollment groups that match class names
+    # Build teaching groups from FG_ enrollment groups
+    # Use unique names to avoid clashing with Klass groups (e.g., "1a" Klass vs "1a" Undervisning)
+    class_group_names = set(g["display_name"] for g in GROUPS_DATA)
+
     for eid, enr in comvius["enrollment_by_id"].items():
         if not eid.startswith("FG_"):
             continue
@@ -641,8 +644,11 @@ def build_seed_data(comvius: dict) -> dict:
         if not student_in:
             continue
 
+        # Make teaching group name unique if it clashes with a class group
+        tg_display = f"UG {name}" if name in class_group_names else name
+
         tg_uuid = make_uuid("teaching_group", eid)
-        TEACHING_GROUPS[name] = tg_uuid
+        TEACHING_GROUPS[tg_display] = tg_uuid
 
         # Find which class groups these students belong to
         class_ids_set = set()
@@ -654,8 +660,8 @@ def build_seed_data(comvius: dict) -> dict:
 
         TEACHING_GROUPS_DATA.append({
             "id": tg_uuid,
-            "display_name": name,
-            "group_code": name,
+            "display_name": tg_display,
+            "group_code": tg_display,
             "group_type": "Undervisning",
             "organisation_id": org_grundskola,
             "start_date": date(2024, 8, 15),
