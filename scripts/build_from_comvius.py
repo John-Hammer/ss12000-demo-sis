@@ -691,6 +691,131 @@ def build_seed_data(comvius: dict) -> dict:
             "group_ids": [tg["id"]],
         })
 
+    # ---- Extra teaching groups for mentor teachers ----
+    # In a real school, mentors teach subjects across multiple classes in their
+    # grade band, giving them far more teaching-students than mentor-students.
+    # Create subject teaching groups that span all classes in a grade.
+    SUBJECTS_BY_GRADE_BAND = {
+        # F-3: class teacher model, teach 2-3 parallel classes
+        (0, 3): ["Svenska", "Matematik", "SO", "NO"],
+        # 4-6: semi-specialist, teach across all 3 sections
+        (4, 6): ["Svenska", "Matematik", "Engelska", "SO", "NO", "Teknik"],
+        # 7-9: specialist, teach across all 3 sections + adjacent grades
+        (7, 9): ["Svenska", "Matematik", "Engelska", "SO", "NO", "Teknik",
+                  "Idrott", "Slöjd", "Musik", "Bild", "Hemkunskap"],
+    }
+
+    # Build grade -> class group UUIDs mapping
+    grade_to_classes = defaultdict(list)
+    for gd in GROUPS_DATA:
+        gname = gd["display_name"]
+        if gname in eg_groups:
+            grade_to_classes[eg_groups[gname]["grade"]].append(gd["id"])
+
+    # Build mentor -> (staff_uuid, grade, class_group_uuid)
+    mentor_info = {}
+    for gd in GROUPS_DATA:
+        if gd.get("mentor_id"):
+            gname = gd["display_name"]
+            grade = eg_groups.get(gname, {}).get("grade")
+            if grade is not None:
+                mentor_info[gd["mentor_id"]] = (grade, gd["id"])
+
+    # For each grade, create subject teaching groups taught by the mentors
+    # of that grade, spanning all classes in the grade
+    subject_tg_counter = 0
+    for (grade_lo, grade_hi), subjects in SUBJECTS_BY_GRADE_BAND.items():
+        for grade in range(grade_lo, grade_hi + 1):
+            classes_in_grade = grade_to_classes.get(grade, [])
+            if not classes_in_grade:
+                continue
+
+            # Get mentors for this grade
+            grade_mentors = [
+                sid for sid, (g, _) in mentor_info.items() if g == grade
+            ]
+            if not grade_mentors:
+                continue
+
+            # Distribute subjects round-robin among mentors
+            for i, subject in enumerate(subjects):
+                teacher_id = grade_mentors[i % len(grade_mentors)]
+                subject_tg_counter += 1
+
+                tg_name = f"{subject} åk{grade if grade > 0 else 'F'}"
+                tg_uuid = make_uuid("subject_tg", f"{grade}_{subject}")
+
+                # For F-3: teach own class + 1 parallel class
+                # For 4-9: teach all classes in grade
+                if grade_lo <= 3:
+                    own_class = mentor_info[teacher_id][1]
+                    other_classes = [c for c in classes_in_grade if c != own_class]
+                    tg_classes = [own_class] + other_classes[:1]
+                else:
+                    tg_classes = classes_in_grade
+
+                if tg_name not in TEACHING_GROUPS:
+                    TEACHING_GROUPS[tg_name] = tg_uuid
+                    TEACHING_GROUPS_DATA.append({
+                        "id": tg_uuid,
+                        "display_name": tg_name,
+                        "group_code": tg_name,
+                        "group_type": "Undervisning",
+                        "organisation_id": org_grundskola,
+                        "start_date": date(2024, 8, 15),
+                        "class_ids": tg_classes,
+                    })
+
+                    act_uuid = make_uuid("subject_act", f"{grade}_{subject}")
+                    ACTIVITIES_DATA.append({
+                        "id": act_uuid,
+                        "display_name": tg_name,
+                        "subject_code": subject[:2].upper(),
+                        "subject_name": subject,
+                        "activity_type": "Undervisning",
+                        "organisation_id": org_grundskola,
+                        "start_date": date(2024, 8, 15),
+                        "teacher_ids": [teacher_id],
+                        "group_ids": [tg_uuid],
+                    })
+
+    # For 7-9 mentors, also add cross-grade teaching (a math teacher in 7
+    # typically also teaches 8 or 9)
+    for grade in range(7, 10):
+        grade_mentors = [
+            sid for sid, (g, _) in mentor_info.items() if g == grade
+        ]
+        # Each mentor picks up one class in an adjacent grade
+        adjacent = grade + 1 if grade < 9 else grade - 1
+        adj_classes = grade_to_classes.get(adjacent, [])
+        for i, teacher_id in enumerate(grade_mentors):
+            if i < len(adj_classes):
+                cross_name = f"Extra åk{adjacent} ({i+1})"
+                cross_uuid = make_uuid("cross_tg", f"{grade}_{adjacent}_{i}")
+                if cross_name not in TEACHING_GROUPS:
+                    TEACHING_GROUPS[cross_name] = cross_uuid
+                    TEACHING_GROUPS_DATA.append({
+                        "id": cross_uuid,
+                        "display_name": cross_name,
+                        "group_code": cross_name,
+                        "group_type": "Undervisning",
+                        "organisation_id": org_grundskola,
+                        "start_date": date(2024, 8, 15),
+                        "class_ids": [adj_classes[i % len(adj_classes)]],
+                    })
+                    act_uuid = make_uuid("cross_act", f"{grade}_{adjacent}_{i}")
+                    ACTIVITIES_DATA.append({
+                        "id": act_uuid,
+                        "display_name": cross_name,
+                        "subject_code": None,
+                        "subject_name": cross_name,
+                        "activity_type": "Undervisning",
+                        "organisation_id": org_grundskola,
+                        "start_date": date(2024, 8, 15),
+                        "teacher_ids": [teacher_id],
+                        "group_ids": [cross_uuid],
+                    })
+
     # ---- Ensure every class group has a mentor ----
     # If any group still lacks a mentor, assign one from staff not yet mentoring
     mentoring_staff = set()
