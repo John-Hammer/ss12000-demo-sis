@@ -4,3 +4,4 @@ from .person import Person
 from .group import Group, GroupMembership
 from .duty import Duty
 from .activity import Activity, ActivityTeacher, ActivityGroup
+from .seed_meta import SeedMeta

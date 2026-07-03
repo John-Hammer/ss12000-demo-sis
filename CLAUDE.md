@@ -68,11 +68,12 @@ All entities use UUIDs as primary keys. Hierarchy:
 
 ## Seed Data System
 
-Two data sources, selected via `DEMO_SEED_DATA` env var:
+Three data sources, selected via `DEMO_SEED_DATA` env var:
 
 | Value | Source | Description |
 |-------|--------|-------------|
-| `schoolsoft` (default) | `schoolsoft_data.py` | Anonymized SchoolSoft data: 689 students, 123 staff, 916 guardians, 33 class groups, 85 teaching groups, 89 activities |
+| `minimal` (default) | `minimal_data.py` | Hand-curated KISS dataset: 1 class (7A, 30 students), 5 teachers (Sara Lindqvist mentors the whole class), 1 kurator, 1 rektor, 1 admin, 55 guardians, 5 teaching groups + activities. Deterministic uuid5 IDs; the skolSköld demo personas (setup_demo_users) reference staff 1001/1002/1006/1007 by UUID |
+| `schoolsoft` | `schoolsoft_data.py` | Anonymized SchoolSoft data: 689 students, 123 staff, 916 guardians, 33 class groups, 85 teaching groups, 89 activities. Known issues: identical mentor_id on many classes, empty activity teacher_ids, `'Larare'` duty_role (unmapped by sync) |
 | `carlssons` | `carlssons_data.py` | Anonymized Carlssons/Ekbergsskolan (no teaching groups or activities) |
 
 The schoolsoft data is generated from anonymized SchoolSoft TSV exports via `python -m scripts.build_from_schoolsoft --tsv-dir ../skolSköld/demo_schoolsoft_tsv`. It includes all entity types: orgs, staff, students, guardians, class groups, teaching groups, and activities.
@@ -81,7 +82,17 @@ All data sources export: `ORGANISATIONS`, `STAFF`, `STUDENTS`, `GUARDIANS`, `GRO
 
 The `external_id` fields are the critical link — the main skolSköld app uses these to match staff/students after SS12000 sync with the anonymized incident/referral data it imports separately.
 
-The database auto-seeds on first startup if empty. Delete `data/fake_sis.db` to re-seed.
+The database auto-seeds on first startup if empty. The seeder stamps the DB
+with `dataset = <source>:<version>` in the `seed_meta` table; if the deployed
+code carries a different source or version (e.g. `DATASET_VERSION` bumped in
+`minimal_data.py`, or `DEMO_SEED_DATA` changed), the database is **wiped and
+reseeded automatically on startup** — no need to delete the volume. Deleting
+`data/fake_sis.db` still forces a full re-seed.
+
+Teaching-group entries may carry a `teacher_ids` list (minimal dataset):
+the seeder turns these into `Lärare` DutyAssignments, which is what makes
+skolSköld's sync populate `Group.teachers` (mentor assignments come from
+the class group's `mentor_id`).
 
 ## Anonymization Pipeline
 
@@ -133,8 +144,9 @@ Response format: `{"data": [...], "pageToken": null}`
 
 ```bash
 pip install -r requirements.txt
-uvicorn app.main:app --reload                            # SchoolSoft data (default)
-DEMO_SEED_DATA=carlssons uvicorn app.main:app --reload   # Carlssons data
+uvicorn app.main:app --reload                             # minimal data (default)
+DEMO_SEED_DATA=schoolsoft uvicorn app.main:app --reload   # full SchoolSoft data
+DEMO_SEED_DATA=carlssons uvicorn app.main:app --reload    # Carlssons data
 ```
 
 ## Deployment
@@ -146,7 +158,9 @@ docker build -t demo-sis .
 docker run -p 8080:8080 -v sis-data:/app/data demo-sis
 ```
 
-Set env vars in CapRover: `DEMO_SEED_DATA=schoolsoft`, `JWT_SECRET=<production-secret>`, etc.
+Set env vars in CapRover: `DEMO_SEED_DATA=minimal` (or unset — it's the
+default; note the deployed app may still have `schoolsoft` set from before),
+`JWT_SECRET=<production-secret>`, etc.
 
 ## Sibling Projects
 

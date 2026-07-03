@@ -3,22 +3,42 @@ Database seeder for demo data.
 Seeds the database with school data from the selected data source.
 
 Set DEMO_SEED_DATA env var to choose data source:
-  schoolsoft (default) — anonymized SchoolSoft data with teaching groups + activities
-  carlssons            — anonymized production data from Carlssons/Ekbergsskolan (no activities)
+  minimal (default) — hand-curated KISS dataset: one class (7A, 30 students),
+                      5 teachers (one mentor), 1 EHT, 1 rektor, 1 admin
+  schoolsoft        — anonymized SchoolSoft data with teaching groups + activities
+  carlssons         — anonymized production data from Carlssons/Ekbergsskolan (no activities)
+
+The seeder stamps the database with the dataset name + version (seed_meta
+table). If the deployed code carries a different dataset or version, the
+database is wiped and reseeded automatically on startup — so pushing a new
+dataset updates the online demo SIS despite the persistent volume.
 """
 import os
 from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import async_session_maker
+from ..database import async_session_maker, create_tables, drop_tables
 from ..models.organisation import Organisation
 from ..models.person import Person, Enrolment, person_responsibles
 from ..models.group import Group, GroupMembership
 from ..models.duty import Duty, DutyAssignment
 from ..models.activity import Activity, ActivityTeacher, ActivityGroup
+from ..models.seed_meta import SeedMeta
 
-DATA_SOURCE = os.environ.get("DEMO_SEED_DATA", "schoolsoft")
+DATA_SOURCE = os.environ.get("DEMO_SEED_DATA", "minimal")
+DATASET_VERSION = "1"
+
+if DATA_SOURCE == "minimal":
+    try:
+        from .minimal_data import (
+            ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
+            TEACHING_GROUPS_DATA, ACTIVITIES_DATA,
+            ORGS, PERSONS, GROUPS, TEACHING_GROUPS,
+            DATASET_VERSION,
+        )
+    except ImportError:
+        DATA_SOURCE = "schoolsoft"  # fall back
 
 if DATA_SOURCE == "schoolsoft":
     try:
@@ -45,20 +65,40 @@ if DATA_SOURCE == "carlssons":
     except ImportError:
         raise ImportError("No seed data available. Generate with: python -m scripts.build_from_schoolsoft")
 
+DATASET_STAMP = f"{DATA_SOURCE}:{DATASET_VERSION}"
+
+
+async def _current_stamp(session: AsyncSession):
+    """Return the dataset stamp the DB was seeded with, or None."""
+    result = await session.execute(
+        select(SeedMeta).filter(SeedMeta.key == "dataset")
+    )
+    row = result.scalar_one_or_none()
+    return row.value if row else None
+
 
 async def seed_database():
     """
-    Seed the database with LotR demo data.
-    Only seeds if the database is empty.
+    Seed the database if it is empty, or wipe and reseed if it was seeded
+    with a different dataset/version than the code now carries.
     """
     async with async_session_maker() as session:
-        # Check if already seeded
+        stamp = await _current_stamp(session)
         result = await session.execute(select(Organisation).limit(1))
-        if result.scalar_one_or_none():
-            print("Database already seeded, skipping...")
+        has_data = result.scalar_one_or_none() is not None
+
+        if has_data and stamp == DATASET_STAMP:
+            print(f"Database already seeded with {DATASET_STAMP}, skipping...")
             return
 
+        if has_data:
+            print(f"Dataset changed ({stamp or 'unstamped'} -> {DATASET_STAMP}), wiping database...")
+            await drop_tables()
+            await create_tables()
+
+    async with async_session_maker() as session:
         source_labels = {
+            "minimal": "minimal KISS (one class)",
             "schoolsoft": "SchoolSoft (anonymized)",
             "carlssons": "Carlssons/Ekbergsskolan",
         }
@@ -96,6 +136,9 @@ async def seed_database():
 
         # 10. Mark two students as protected (for sekretessmarkering testing)
         await seed_protected_students(session)
+
+        # 11. Stamp the DB with the dataset name + version
+        session.add(SeedMeta(key="dataset", value=DATASET_STAMP))
 
         await session.commit()
         print("Database seeding complete!")
@@ -306,6 +349,19 @@ async def seed_duties(session: AsyncSession):
                     duty_id=duty.id,
                     group_id=group_data["id"],
                     assignment_role_type="Mentor",
+                    start_date=date(2024, 8, 15),
+                )
+                session.add(assignment)
+
+        # Create teacher assignments for teaching groups that declare
+        # teacher_ids (minimal dataset) — this is what populates
+        # Group.teachers in skolSköld via the duties endpoint
+        for tg_data in TEACHING_GROUPS_DATA:
+            if staff_data["id"] in tg_data.get("teacher_ids", []):
+                assignment = DutyAssignment(
+                    duty_id=duty.id,
+                    group_id=tg_data["id"],
+                    assignment_role_type="Lärare",
                     start_date=date(2024, 8, 15),
                 )
                 session.add(assignment)

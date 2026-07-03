@@ -1,7 +1,8 @@
 # SS12000 Demo SIS
 
-Mock SS12000 v2.1 API server with Lord of the Rings themed demo data.
-Used for testing Skolsköld's SS12000 integration.
+Mock SS12000 v2.1 API server with synthetic Swedish school data.
+Used as the data source for the Skolsköld demo instance and for testing
+the SS12000 integration.
 
 ## Quick Start
 
@@ -58,47 +59,41 @@ Use the token in subsequent requests:
 curl -H "Authorization: Bearer <token>" http://localhost:8080/v2/persons
 ```
 
-## Demo Data (Lord of the Rings Theme)
+## Demo Data
 
-The server auto-seeds with LotR characters on first run:
+The server auto-seeds on first run. The data source is selected with the
+`DEMO_SEED_DATA` env var (`minimal` is the default — see CLAUDE.md for the
+full table). If the deployed dataset name or version changes, the database
+is **wiped and reseeded automatically on startup** (tracked in the
+`seed_meta` table), so pushing new seed data updates the online demo
+despite the persistent volume.
 
-### School Structure
-- **Middle-earth Educational Authority** (Huvudman)
-  - **Rivendell Academy** (Skola)
-    - Rivendell Grundskola (Years 1-9)
-    - Rivendell Gymnasium (Years 10-12)
+### Minimal dataset (default) — one class, KISS
 
-### Staff (7)
-| Name | Role | Signature |
-|------|------|-----------|
-| Gandalf the Grey | Rektor (Principal) | GAN |
-| Elrond Half-elven | Rektor (Deputy) | ELR |
-| Galadriel of Lothlórien | Lärare (Teacher) | GAL |
-| Celeborn the Wise | Lärare (Teacher) | CEL |
-| Aragorn Elessar | Lärare (Teacher) | ARA |
-| Bilbo Baggins | Bibliotekarie | BIL |
-| Tom Bombadil | Annan personal | TOM |
+**Demoskolan** (Huvudman → Skola → Grundskola), class **7A** with 30
+students (year 7, born 2013), ~2 guardians each (55 guardians total).
 
-### Students (10)
-| Name | Class | Guardian |
-|------|-------|----------|
-| Frodo Baggins | 4A Shire | Bilbo |
-| Samwise Gamgee | 4A Shire | Hamfast |
-| Meriadoc Brandybuck | 4B Buckland | Saradoc |
-| Peregrin Took | 4B Buckland | Paladin |
-| Faramir of Gondor | 5A Gondor | Denethor |
-| Éowyn of Rohan | 5A Gondor | Théoden |
-| Boromir of Gondor | GY1 Fellowship | Denethor |
-| Éomer of Rohan | GY1 Fellowship | Théoden |
-| Arwen Undómiel | GY2 Elven | Elrond |
-| Legolas Greenleaf | GY2 Elven | Thranduil |
+| Staff | Role | Assignment |
+|-------|------|------------|
+| Sara Lindqvist | Lärare | **Mentor of 7A** + teaches SV7 (Svenska) |
+| Erik Sandberg | Lärare | MA7 (Matematik) |
+| Maria Holmgren | Lärare | EN7 (Engelska) |
+| Johan Ek | Lärare | NO7 (NO) |
+| Anna Bergström | Lärare | IDH7 (Idrott och hälsa) |
+| Eva Ström | Kurator | EHT |
+| Lars Wikström | Rektor | Skolledning |
+| Karin Åberg | Administratör | — |
 
-### Classes (5)
-- 4A - The Shire Class (Mentor: Aragorn)
-- 4B - Buckland Class (Mentor: Celeborn)
-- 5A - Gondor Class (Mentor: Galadriel)
-- GY1 - Fellowship (Mentor: Gandalf)
-- GY2 - Elven Studies (Mentor: Elrond)
+Every student is a member of all five teaching groups. Mentorship is
+modelled as a Duty `assignmentRole` of type `Mentor` on the class group;
+teaching as `Lärare` assignments on the teaching groups plus Activities —
+matching how skolSköld's SS12000 sync distinguishes `Group.mentor` from
+`Group.teachers`.
+
+The four demo login personas in skolSköld (`setup_demo_users`) map to
+staff 1001 (mentor), 1002 (lärare), 1006 (EHT), 1007 (skolledare) via
+their deterministic uuid5 person IDs. Two students carry
+sekretessmarkering (set by the seeder for protected-identity testing).
 
 ## Deployment (CapRover)
 
