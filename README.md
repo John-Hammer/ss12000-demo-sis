@@ -71,13 +71,13 @@ despite the persistent volume.
 ### Minimal dataset (default) — two classes, KISS
 
 **Demoskolan** (Huvudman → Skola → Grundskola), class **7A** with 30
-students and class **7B** with 15 students (year 7, born 2013),
-~2 guardians each (83 guardians total).
+students (year 7, born 2013) and class **8A** with 15 students (year 8,
+born 2012), ~2 guardians each (83 guardians total).
 
 | Staff | Role | Assignment |
 |-------|------|------------|
-| Sara Lindqvist | Lärare | **Mentor of 7A** + teaches SV7 + SV7B (Svenska) |
-| Erik Sandberg | Lärare | **Mentor of 7B** + teaches MA7 + MA7B (Matematik) |
+| Sara Lindqvist | Lärare | **Mentor of 7A** + teaches SV7 + SV8 (Svenska) |
+| Erik Sandberg | Lärare | **Mentor of 8A** + teaches MA7 + MA8 (Matematik) |
 | Maria Holmgren | Lärare | EN7 (Engelska) |
 | Johan Ek | Lärare | NO7 (NO) |
 | Anna Bergström | Lärare | IDH7 (Idrott och hälsa) |
@@ -85,8 +85,8 @@ students and class **7B** with 15 students (year 7, born 2013),
 | Lars Wikström | Rektor | Skolledning |
 | Karin Åberg | Administratör | — |
 
-Every 7A student is a member of all five 7A teaching groups; 7B has only
-SV7B and MA7B, taught cross-wise so both main demo personas have a
+Every 7A student is a member of all five 7A teaching groups; 8A has only
+SV8 and MA8, taught cross-wise so both main demo personas have a
 teaching group whose students they do NOT mentor. Mentorship is
 modelled as a Duty `assignmentRole` of type `Mentor` on the class group;
 teaching as `Lärare` assignments on the teaching groups plus Activities —
