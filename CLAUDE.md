@@ -72,7 +72,7 @@ Three data sources, selected via `DEMO_SEED_DATA` env var:
 
 | Value | Source | Description |
 |-------|--------|-------------|
-| `minimal` (default) | `minimal_data.py` | Hand-curated KISS dataset: 1 class (7A, 30 students), 5 teachers (Sara Lindqvist mentors the whole class), 1 kurator, 1 rektor, 1 admin, 55 guardians, 5 teaching groups + activities. Deterministic uuid5 IDs; the skolSköld demo personas (setup_demo_users) reference staff 1001/1002/1006/1007 by UUID |
+| `minimal` (default) | `minimal_data.py` | Hand-curated KISS dataset: 2 classes (7A 30 students mentored by Sara Lindqvist, 7B 15 students mentored by Erik Sandberg), 5 teachers, 1 kurator, 1 rektor, 1 admin, 83 guardians, 7 teaching groups + activities (7B has only SV7B/MA7B, taught cross-wise so both main personas teach students they don't mentor). Deterministic uuid5 IDs; the skolSköld demo personas (setup_demo_users) reference staff 1001/1002/1006/1007 by UUID |
 | `schoolsoft` | `schoolsoft_data.py` | Anonymized SchoolSoft data: 689 students, 123 staff, 916 guardians, 33 class groups, 85 teaching groups, 89 activities. Known issues: identical mentor_id on many classes, empty activity teacher_ids, `'Larare'` duty_role (unmapped by sync) |
 | `carlssons` | `carlssons_data.py` | Anonymized Carlssons/Ekbergsskolan (no teaching groups or activities) |
 

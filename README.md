@@ -68,15 +68,16 @@ is **wiped and reseeded automatically on startup** (tracked in the
 `seed_meta` table), so pushing new seed data updates the online demo
 despite the persistent volume.
 
-### Minimal dataset (default) — one class, KISS
+### Minimal dataset (default) — two classes, KISS
 
 **Demoskolan** (Huvudman → Skola → Grundskola), class **7A** with 30
-students (year 7, born 2013), ~2 guardians each (55 guardians total).
+students and class **7B** with 15 students (year 7, born 2013),
+~2 guardians each (83 guardians total).
 
 | Staff | Role | Assignment |
 |-------|------|------------|
-| Sara Lindqvist | Lärare | **Mentor of 7A** + teaches SV7 (Svenska) |
-| Erik Sandberg | Lärare | MA7 (Matematik) |
+| Sara Lindqvist | Lärare | **Mentor of 7A** + teaches SV7 + SV7B (Svenska) |
+| Erik Sandberg | Lärare | **Mentor of 7B** + teaches MA7 + MA7B (Matematik) |
 | Maria Holmgren | Lärare | EN7 (Engelska) |
 | Johan Ek | Lärare | NO7 (NO) |
 | Anna Bergström | Lärare | IDH7 (Idrott och hälsa) |
@@ -84,7 +85,9 @@ students (year 7, born 2013), ~2 guardians each (55 guardians total).
 | Lars Wikström | Rektor | Skolledning |
 | Karin Åberg | Administratör | — |
 
-Every student is a member of all five teaching groups. Mentorship is
+Every 7A student is a member of all five 7A teaching groups; 7B has only
+SV7B and MA7B, taught cross-wise so both main demo personas have a
+teaching group whose students they do NOT mentor. Mentorship is
 modelled as a Duty `assignmentRole` of type `Mentor` on the class group;
 teaching as `Lärare` assignments on the teaching groups plus Activities —
 matching how skolSköld's SS12000 sync distinguishes `Group.mentor` from

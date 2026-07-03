@@ -1,12 +1,18 @@
 """
-Minimal KISS demo dataset — one class, hand-curated.
+Minimal KISS demo dataset — two classes, hand-curated.
 
-One full class (7A, 30 students) at a single school unit:
-  - 5 teachers, one of whom (Sara Lindqvist) is mentor for the whole class
+One full class (7A, 30 students) plus a smaller parallel class
+(7B, 15 students) at a single school unit:
+  - 5 teachers; Sara Lindqvist is mentor for all of 7A, Erik Sandberg
+    is mentor for all of 7B
   - 1 EHT (kurator), 1 skolledare (rektor), 1 generic staff (administratör)
   - ~2 guardians per student (a few single-guardian households)
-  - 5 teaching groups (SV7, MA7, EN7, NO7, IDH7) — every student in each,
-    one teacher per group, with matching activities
+  - 5 teaching groups for 7A (SV7, MA7, EN7, NO7, IDH7) — every 7A student
+    in each, one teacher per group, with matching activities
+  - 2 teaching groups for 7B (SV7B taught by Sara, MA7B taught by Erik) —
+    deliberately sparse; they exist so the two main demo personas each have
+    a teaching group whose students they do NOT mentor (the dashboard's
+    Teaching Groups widget is meaningless when it mirrors the mentor class)
 
 All UUIDs are uuid5-derived from external_id, so they are stable across
 reseeds. The four demo login personas in the main skolSköld app
@@ -21,7 +27,7 @@ from datetime import date
 
 NAMESPACE = uuid.UUID('a1b2c3d4-e5f6-7890-abcd-ef1234567890')
 
-DATASET_VERSION = '1'
+DATASET_VERSION = '2'
 
 
 def _uid(key: str) -> str:
@@ -87,8 +93,8 @@ _UNIT = ORGS['grundskola']
 # ---------------------------------------------------------------------------
 # (ext_id, given, family, duty_role, sex, birth_date)
 _STAFF_DEFS = [
-    ('1001', 'Sara', 'Lindqvist', 'Lärare', 'Kvinna', date(1985, 3, 12)),   # mentor 7A + SV7
-    ('1002', 'Erik', 'Sandberg', 'Lärare', 'Man', date(1979, 9, 4)),        # MA7
+    ('1001', 'Sara', 'Lindqvist', 'Lärare', 'Kvinna', date(1985, 3, 12)),   # mentor 7A + SV7/SV7B
+    ('1002', 'Erik', 'Sandberg', 'Lärare', 'Man', date(1979, 9, 4)),        # mentor 7B + MA7/MA7B
     ('1003', 'Maria', 'Holmgren', 'Lärare', 'Kvinna', date(1990, 6, 21)),   # EN7
     ('1004', 'Johan', 'Ek', 'Lärare', 'Man', date(1983, 1, 30)),            # NO7
     ('1005', 'Anna', 'Bergström', 'Lärare', 'Kvinna', date(1994, 11, 8)),   # IDH7
@@ -120,15 +126,17 @@ for _ext, _given, _family, _role, _sex, _born in _STAFF_DEFS:
 _STAFF_BY_EXT = {s['external_id']: s['id'] for s in STAFF}
 
 MENTOR_ID = _STAFF_BY_EXT['1001']
+MENTOR_7B_ID = _STAFF_BY_EXT['1002']
 
 
 # ---------------------------------------------------------------------------
-# Class group — 7A
+# Class groups — 7A and 7B
 # ---------------------------------------------------------------------------
 
 CLASS_7A = _uid('group:7A')
+CLASS_7B = _uid('group:7B')
 
-GROUPS = {'7A': CLASS_7A}
+GROUPS = {'7A': CLASS_7A, '7B': CLASS_7B}
 
 GROUPS_DATA = [
     {
@@ -141,11 +149,23 @@ GROUPS_DATA = [
         'start_date': date(2025, 8, 18),
         'mentor_id': MENTOR_ID,
     },
+    {
+        'id': CLASS_7B,
+        'display_name': '7B',
+        'group_code': '7B',
+        'group_type': 'Klass',
+        'school_type': 'GR',
+        'organisation_id': _UNIT,
+        'start_date': date(2025, 8, 18),
+        'mentor_id': MENTOR_7B_ID,
+    },
 ]
 
 
 # ---------------------------------------------------------------------------
-# Students (30, born 2013, school year 7) — external_ids 2001–2030
+# Students (45, born 2013, school year 7)
+#   7A: 30 students, external_ids 2001–2030
+#   7B: 15 students, external_ids 2031–2045
 # ---------------------------------------------------------------------------
 # (given, family, sex). Guardian spec per student:
 #   'both'   → mother + father, same surname as student
@@ -184,6 +204,24 @@ _STUDENT_DEFS = [
     ('Vincent', 'Söderlund', 'Man', 'both'),
 ]
 
+_STUDENT_DEFS_7B = [
+    ('Freja', 'Åkesson', 'Kvinna', 'both'),
+    ('Agnes', 'Lindberg', 'Kvinna', 'both'),
+    ('Molly', 'Sandström', 'Kvinna', 'split'),
+    ('Juni', 'Hagström', 'Kvinna', 'single'),
+    ('Iris', 'Wallgren', 'Kvinna', 'both'),
+    ('Saga', 'Byström', 'Kvinna', 'both'),
+    ('Cornelia', 'Åström', 'Kvinna', 'both'),
+    ('Ellen', 'Modig', 'Kvinna', 'both'),
+    ('Sixten', 'Palm', 'Man', 'both'),
+    ('Frank', 'Öberg', 'Man', 'single'),
+    ('Otto', 'Lundmark', 'Man', 'both'),
+    ('Charlie', 'Sjögren', 'Man', 'both'),
+    ('Malte', 'Hjort', 'Man', 'split'),
+    ('Edvin', 'Krantz', 'Man', 'both'),
+    ('Nils', 'Tornberg', 'Man', 'both'),
+]
+
 # Adult first-name pools for guardians (index-paired with students)
 _MOTHER_NAMES = [
     'Malin', 'Jenny', 'Camilla', 'Sofia', 'Therese', 'Emma', 'Linda',
@@ -200,7 +238,10 @@ _FATHER_NAMES = [
     'Alexander', 'Kristoffer', 'David',
 ]
 # Maiden names used for 'split' households
-_SPLIT_SURNAMES = {'Eriksson': 'Vikander', 'Norberg': 'Ahlin', 'Forsberg': 'Rosén'}
+_SPLIT_SURNAMES = {
+    'Eriksson': 'Vikander', 'Norberg': 'Ahlin', 'Forsberg': 'Rosén',
+    'Sandström': 'Kjellberg', 'Hjort': 'Melin',
+}
 
 _STREETS = [
     'Björkvägen', 'Tallstigen', 'Storgatan', 'Kyrkogatan', 'Solrosgatan',
@@ -210,7 +251,14 @@ _STREETS = [
 STUDENTS = []
 GUARDIANS = []
 
-for _i, (_given, _family, _sex, _household) in enumerate(_STUDENT_DEFS):
+# 7A students get ext ids 2001–2030, 7B continues at 2031–2045 (the shared
+# running index _i also keeps guardian ext ids and civic serials unique)
+_ALL_STUDENT_DEFS = (
+    [(CLASS_7A, d) for d in _STUDENT_DEFS]
+    + [(CLASS_7B, d) for d in _STUDENT_DEFS_7B]
+)
+
+for _i, (_class_id, (_given, _family, _sex, _household)) in enumerate(_ALL_STUDENT_DEFS):
     _ext = str(2001 + _i)
     _sid = _uid(f'student:{_ext}')
     _born = date(2013, (_i % 12) + 1, ((_i * 7) % 27) + 1)
@@ -238,15 +286,17 @@ for _i, (_given, _family, _sex, _household) in enumerate(_STUDENT_DEFS):
         _guardian_ids.append(gid)
 
     _mother_family = _SPLIT_SURNAMES.get(_family, _family) if _household == 'split' else _family
+    _mother_name = _MOTHER_NAMES[_i % len(_MOTHER_NAMES)]
+    _father_name = _FATHER_NAMES[_i % len(_FATHER_NAMES)]
     if _household == 'single':
         # Alternate single mothers and single fathers
         if _i % 2 == 0:
-            _add_guardian(_MOTHER_NAMES[_i], _family, 'Kvinna', 0)
+            _add_guardian(_mother_name, _family, 'Kvinna', 0)
         else:
-            _add_guardian(_FATHER_NAMES[_i], _family, 'Man', 0)
+            _add_guardian(_father_name, _family, 'Man', 0)
     else:
-        _add_guardian(_MOTHER_NAMES[_i], _mother_family, 'Kvinna', 0)
-        _add_guardian(_FATHER_NAMES[_i], _family, 'Man', 1)
+        _add_guardian(_mother_name, _mother_family, 'Kvinna', 0)
+        _add_guardian(_father_name, _family, 'Man', 1)
 
     STUDENTS.append({
         'id': _sid,
@@ -259,28 +309,33 @@ for _i, (_given, _family, _sex, _household) in enumerate(_STUDENT_DEFS):
         'sex': _sex,
         'external_id': _ext,
         'birth_date': _born,
-        'group_id': CLASS_7A,
+        'group_id': _class_id,
         'guardian_ids': _guardian_ids,
     })
 
 
 # ---------------------------------------------------------------------------
-# Teaching groups + activities — one subject per teacher, whole class in each
+# Teaching groups + activities — one subject per teacher, whole class in each.
+# 7B gets only two subjects (SV7B/MA7B), taught cross-wise: Sara (mentor 7A)
+# teaches SV7B and Erik (mentor 7B) teaches MA7 — so both demo personas have
+# a teaching group with students they do not mentor.
 # ---------------------------------------------------------------------------
-# (code, subject_name, subject_code, teacher ext_id)
+# (code, subject_name, subject_code, teacher ext_id, class id, class label)
 _SUBJECT_DEFS = [
-    ('SV7', 'Svenska', 'SVE', '1001'),
-    ('MA7', 'Matematik', 'MAT', '1002'),
-    ('EN7', 'Engelska', 'ENG', '1003'),
-    ('NO7', 'NO', 'NO', '1004'),
-    ('IDH7', 'Idrott och hälsa', 'IDH', '1005'),
+    ('SV7', 'Svenska', 'SVE', '1001', CLASS_7A, '7A'),
+    ('MA7', 'Matematik', 'MAT', '1002', CLASS_7A, '7A'),
+    ('EN7', 'Engelska', 'ENG', '1003', CLASS_7A, '7A'),
+    ('NO7', 'NO', 'NO', '1004', CLASS_7A, '7A'),
+    ('IDH7', 'Idrott och hälsa', 'IDH', '1005', CLASS_7A, '7A'),
+    ('SV7B', 'Svenska', 'SVE', '1001', CLASS_7B, '7B'),
+    ('MA7B', 'Matematik', 'MAT', '1002', CLASS_7B, '7B'),
 ]
 
 TEACHING_GROUPS = {}
 TEACHING_GROUPS_DATA = []
 ACTIVITIES_DATA = []
 
-for _code, _subject, _subject_code, _teacher_ext in _SUBJECT_DEFS:
+for _code, _subject, _subject_code, _teacher_ext, _class, _label in _SUBJECT_DEFS:
     _tg_id = _uid(f'teaching_group:{_code}')
     _teacher_id = _STAFF_BY_EXT[_teacher_ext]
     TEACHING_GROUPS[_code] = _tg_id
@@ -291,14 +346,14 @@ for _code, _subject, _subject_code, _teacher_ext in _SUBJECT_DEFS:
         'group_type': 'Undervisning',
         'organisation_id': _UNIT,
         'start_date': date(2025, 8, 18),
-        'class_ids': [CLASS_7A],
+        'class_ids': [_class],
         # Consumed by seed_duties: creates a "Lärare" DutyAssignment so the
         # SS12000 sync populates Group.teachers in skolSköld
         'teacher_ids': [_teacher_id],
     })
     ACTIVITIES_DATA.append({
         'id': _uid(f'activity:{_code}'),
-        'display_name': f'{_subject} 7A',
+        'display_name': f'{_subject} {_label}',
         'subject_code': _subject_code,
         'subject_name': _subject,
         'activity_type': 'Undervisning',
