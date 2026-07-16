@@ -46,12 +46,11 @@ async def list_activities(
         query = query.filter(Activity.subject_code == subject)
 
     # Eager load relationships if expanding
-    if expand:
-        if "teachers" in expand:
-            query = query.options(selectinload(Activity.teachers))
-        if "groups" in expand:
-            query = query.options(selectinload(Activity.groups))
-
+    # teachers/groups are BASE reference fields on Activity per spec —
+    # to_dict always touches them, so always eager-load (async SQLAlchemy
+    # cannot lazy-load inside a running handler).
+    query = query.options(selectinload(Activity.teachers),
+                          selectinload(Activity.groups))
     query = query.order_by(Activity.id)
     result = await db.execute(query)
     activities = result.scalars().all()
