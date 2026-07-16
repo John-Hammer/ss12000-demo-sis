@@ -27,7 +27,7 @@ from ..models.activity import Activity, ActivityTeacher, ActivityGroup
 from ..models.seed_meta import SeedMeta
 
 DATA_SOURCE = os.environ.get("DEMO_SEED_DATA", "minimal")
-DATASET_VERSION = "1"
+DATASET_VERSION = "2"  # 2: spec-aligned duty roles + EHT assignmentRoles
 
 if DATA_SOURCE == "minimal":
     try:
