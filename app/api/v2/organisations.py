@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database import get_db
 from ...models.organisation import Organisation
 from ...auth.dependencies import get_current_client
-from ...schemas.common import IdLookup
+from ...schemas.common import IdLookup, paginate
 
 router = APIRouter(prefix="/organisations", tags=["Organisation"])
 
@@ -42,16 +42,14 @@ async def list_organisations(
     if type:
         query = query.filter(Organisation.organisation_type.in_(type))
 
-    # Apply limit
-    if limit:
-        query = query.limit(limit)
-
+    query = query.order_by(Organisation.id)
     result = await db.execute(query)
     organisations = result.scalars().all()
+    organisations, next_token = paginate(organisations, limit, pageToken)
 
     return {
         "data": [org.to_dict(expand_references=expandReferenceNames) for org in organisations],
-        "pageToken": None  # Simple implementation - no pagination for demo
+        "pageToken": next_token  # Simple implementation - no pagination for demo
     }
 
 

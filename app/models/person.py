@@ -134,7 +134,7 @@ class Person(Base):
             }
 
         if self.email:
-            result["emails"] = [{"value": self.email, "type": self.email_type or "Skola"}]
+            result["emails"] = [{"value": self.email, "type": self.email_type or "Privat"}]
 
         if self.phone_number:
             result["phoneNumbers"] = [{

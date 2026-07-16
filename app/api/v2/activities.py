@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database import get_db
 from ...models.activity import Activity, ActivityTeacher, ActivityGroup
 from ...auth.dependencies import get_current_client
-from ...schemas.common import IdLookup
+from ...schemas.common import IdLookup, paginate
 
 router = APIRouter(prefix="/activities", tags=["Aktiviteter"])
 
@@ -52,11 +52,10 @@ async def list_activities(
         if "groups" in expand:
             query = query.options(selectinload(Activity.groups))
 
-    if limit:
-        query = query.limit(limit)
-
+    query = query.order_by(Activity.id)
     result = await db.execute(query)
     activities = result.scalars().all()
+    activities, next_token = paginate(activities, limit, pageToken)
 
     expand_teachers = expand and "teachers" in expand
     expand_groups = expand and "groups" in expand
@@ -69,7 +68,7 @@ async def list_activities(
             )
             for a in activities
         ],
-        "pageToken": None
+        "pageToken": next_token
     }
 
 

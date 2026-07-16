@@ -38,24 +38,17 @@ class SchoolType(str, Enum):
 
 
 class DutyRole(str, Enum):
-    """Staff roles in SS12000."""
-    REKTOR = "Rektor"  # Principal
-    LARARE = "Lärare"  # Teacher
-    FORSKOLLARARE = "Förskollärare"  # Preschool teacher
-    BARNSKOTARE = "Barnskötare"  # Childminder
-    BIBLIOTEKARIE = "Bibliotekarie"  # Librarian
-    LARARASSISTENT = "Lärarassistent"  # Teacher assistant
-    FRITIDSPEDAGOG = "Fritidspedagog"  # Recreation instructor
-    ANNAN_PERSONAL = "Annan personal"  # Other staff
-    STUDIE_YRKESVAGLEDARE = "Studie- och yrkesvägledare"  # Career counselor
-    FORSTELÄRARE = "Förstelärare"  # Senior teacher
-    KURATOR = "Kurator"  # Counselor
-    SKOLSKOTERSKA = "Skolsköterska"  # School nurse
-    SKOLLAKARE = "Skolläkare"  # School doctor
-    SKOLPSYKOLOG = "Skolpsykolog"  # School psychologist
-    SPECIALLARARE = "Speciallärare/specialpedagog"  # Special education teacher
-    SKOLADMINISTRATOR = "Skoladministratör"  # School administrator
-    OVRIG_ARBETSLEDNING = "Övrig arbetsledning"  # Other management
+    """Staff roles — the spec's Code_DutyRole has EXACTLY these six.
+
+    There is no health-team dutyRole in SS12000: EHT-ness travels as an
+    assignmentRole (Elevhälsopersonal / Specialpedagog) on the duty.
+    """
+    REKTOR = "Rektor"
+    LARARE = "Lärare"
+    FORSKOLLARARE = "Förskollärare"
+    OVRIG_PEDAGOGISK_PERSONAL = "Övrig pedagogisk personal"
+    FORSKOLECHEF = "Förskolechef"
+    ANNAN_PERSONAL = "Annan personal"
 
 
 class GroupType(str, Enum):
@@ -101,8 +94,12 @@ class RelationType(str, Enum):
 
 
 class AssignmentRoleType(str, Enum):
-    """Assignment role types for duties."""
+    """Assignment role types — the spec's Code_AssignmentRole values."""
     MENTOR = "Mentor"
-    FORSTELÄRARE = "Förstelärare"  # Senior teacher
-    STUDIEHANDLEDARE = "Studiehandledare"  # Study supervisor
-    RESURSPERSON = "Resursperson"  # Resource person
+    FORSKOLLARARE = "Förskollärare"
+    BARNSKOTARE = "Barnskötare"
+    FRITIDSPEDAGOG = "Fritidspedagog"
+    SPECIALPEDAGOG = "Specialpedagog"
+    ELEVHALSOPERSONAL = "Elevhälsopersonal"
+    PEDAGOGISK_LEDARE = "Pedagogisk ledare"
+    SCHEMALAGGARE = "Schemaläggare"

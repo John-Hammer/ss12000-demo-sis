@@ -81,6 +81,8 @@ class Activity(Base):
             },
             "displayName": self.display_name,
             "startDate": self.start_date.isoformat(),
+            "organisation": {"id": self.organisation_id},
+            # legacy alias (pre-spec-alignment consumers) — remove later
             "owner": {"id": self.organisation_id},
         }
 

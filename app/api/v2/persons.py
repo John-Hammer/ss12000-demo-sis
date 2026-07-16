@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database import get_db
 from ...models.person import Person, Enrolment
 from ...auth.dependencies import get_current_client
-from ...schemas.common import IdLookup
+from ...schemas.common import IdLookup, paginate
 
 router = APIRouter(prefix="/persons", tags=["Person"])
 
@@ -31,33 +31,24 @@ async def list_persons(
     - enrolments: Include student enrolments
     - responsibles: Include guardian relationships
     """
-    query = select(Person)
-
-    # Eager load relationships if expanding
-    if expand:
-        if "enrolments" in expand:
-            query = query.options(selectinload(Person.enrolments))
-        if "responsibles" in expand:
-            query = query.options(selectinload(Person.responsibles))
-
-    if limit:
-        query = query.limit(limit)
+    # Spec: enrolments and responsibles are BASE Person fields (the
+    # expand mechanism is for _embedded objects like duties/placements),
+    # so they are always loaded and always returned. expand is tolerated.
+    query = (select(Person)
+             .options(selectinload(Person.enrolments),
+                      selectinload(Person.responsibles))
+             .order_by(Person.id))
 
     result = await db.execute(query)
     persons = result.scalars().all()
 
-    expand_enrolments = expand and "enrolments" in expand
-    expand_responsibles = expand and "responsibles" in expand
-
+    page, next_token = paginate(persons, limit, pageToken)
     return {
         "data": [
-            p.to_dict(
-                expand_enrolments=expand_enrolments,
-                expand_responsibles=expand_responsibles
-            )
-            for p in persons
+            p.to_dict(expand_enrolments=True, expand_responsibles=True)
+            for p in page
         ],
-        "pageToken": None
+        "pageToken": next_token
     }
 
 

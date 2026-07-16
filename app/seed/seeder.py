@@ -328,19 +328,61 @@ async def seed_duties(session: AsyncSession):
     if not school_org_id:
         school_org_id = ORGANISATIONS[0]["id"]
 
+    # Spec Code_DutyRole has exactly six values — rich seed roles are
+    # translated the way a real SIS must express them, and the EHT-ness
+    # travels as an assignmentRole (Elevhälsopersonal / Specialpedagog),
+    # which is where SS12000 actually carries it.
+    SPEC_DUTY_ROLE = {
+        "Rektor": "Rektor",
+        "Biträdande rektor": "Rektor",
+        "Lärare": "Lärare",
+        "Förskollärare": "Förskollärare",
+        "Förskolechef": "Förskolechef",
+        "Specialpedagog": "Övrig pedagogisk personal",
+        "Speciallärare/specialpedagog": "Övrig pedagogisk personal",
+        "Fritidspedagog": "Övrig pedagogisk personal",
+        "Lärarassistent": "Övrig pedagogisk personal",
+    }
+    EHT_ASSIGNMENT = {
+        "Kurator": "Elevhälsopersonal",
+        "Skolsköterska": "Elevhälsopersonal",
+        "Skolläkare": "Elevhälsopersonal",
+        "Skolpsykolog": "Elevhälsopersonal",
+        "Psykolog": "Elevhälsopersonal",
+        "Specialpedagog": "Specialpedagog",
+        "Speciallärare/specialpedagog": "Specialpedagog",
+    }
+    eht_group_id = GROUPS_DATA[0]["id"] if GROUPS_DATA else None
+
     for staff_data in STAFF:
+        seed_role = staff_data["duty_role"]
+        spec_role = SPEC_DUTY_ROLE.get(seed_role, "Annan personal")
+        # Keep the rich seed role visible in the free-text description,
+        # like a real huvudman often does.
+        description = staff_data.get("description") or seed_role
+
         # Create duty at the main school
         duty = Duty(
             person_id=staff_data["id"],
             organisation_id=school_org_id,
-            duty_role=staff_data["duty_role"],
-            description=staff_data.get("description"),
+            duty_role=spec_role,
+            description=description,
             signature=staff_data.get("signature"),
             duty_percent=100,
             start_date=date(2024, 1, 1),
         )
         session.add(duty)
         await session.flush()
+
+        # EHT staff: spec-correct signal is an assignmentRole
+        eht_type = EHT_ASSIGNMENT.get(seed_role)
+        if eht_type and eht_group_id:
+            session.add(DutyAssignment(
+                duty_id=duty.id,
+                group_id=eht_group_id,
+                assignment_role_type=eht_type,
+                start_date=date(2024, 8, 15),
+            ))
 
         # Create mentor assignments for teachers
         for group_data in GROUPS_DATA:

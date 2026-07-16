@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database import get_db
 from ...models.duty import Duty, DutyAssignment
 from ...auth.dependencies import get_current_client
-from ...schemas.common import IdLookup
+from ...schemas.common import IdLookup, paginate
 
 router = APIRouter(prefix="/duties", tags=["Duty"])
 
@@ -44,11 +44,10 @@ async def list_duties(
         selectinload(Duty.assignments)
     )
 
-    if limit:
-        query = query.limit(limit)
-
+    query = query.order_by(Duty.id)
     result = await db.execute(query)
     duties = result.scalars().all()
+    duties, next_token = paginate(duties, limit, pageToken)
 
     return {
         "data": [
@@ -58,7 +57,7 @@ async def list_duties(
             )
             for d in duties
         ],
-        "pageToken": None
+        "pageToken": next_token
     }
 
 

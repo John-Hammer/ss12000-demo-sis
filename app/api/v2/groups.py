@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database import get_db
 from ...models.group import Group, GroupMembership
 from ...auth.dependencies import get_current_client
-from ...schemas.common import IdLookup
+from ...schemas.common import IdLookup, paginate
 
 router = APIRouter(prefix="/groups", tags=["Grupper"])
 
@@ -40,27 +40,25 @@ async def list_groups(
     if groupType:
         query = query.filter(Group.group_type.in_(groupType))
 
-    # Eager load relationships if expanding
-    if expand and "groupMemberships" in expand:
-        query = query.options(selectinload(Group.memberships))
-
-    if limit:
-        query = query.limit(limit)
+    # Spec: groupMemberships is a BASE Group field — always loaded and
+    # returned (expand is for _embedded assignmentRoles). expand tolerated.
+    query = query.options(selectinload(Group.memberships)).order_by(Group.id)
 
     result = await db.execute(query)
     groups = result.scalars().all()
+    groups, next_token = paginate(groups, limit, pageToken)
 
     expand_members = expand and "groupMemberships" in expand
 
     return {
         "data": [
             g.to_dict(
-                expand_members=expand_members,
+                expand_members=True,
                 expand_organisation=expandReferenceNames
             )
             for g in groups
         ],
-        "pageToken": None
+        "pageToken": next_token
     }
 
 

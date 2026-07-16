@@ -87,3 +87,32 @@ class AssignmentRole(BaseModel):
     assignmentRoleType: str
     startDate: Optional[str] = None
     endDate: Optional[str] = None
+
+
+# SS12000 pagination. A real SIS pages at ~100 records; the demo doing the
+# same is what forces clients to implement pageToken correctly — returning
+# everything in one response hid a truncation bug in every consumer.
+# 50 (not a real SIS's ~100) so the demo dataset ALWAYS spans multiple
+# pages — every nightly demo sync then exercises the client's pageToken loop.
+DEFAULT_PAGE_SIZE = 50
+
+
+def paginate(items, limit, page_token):
+    """Slice an ORDERED item list per SS12000 {data, pageToken} semantics.
+
+    Returns (page_items, next_page_token). The token is an opaque offset
+    cursor; None means no more data.
+    """
+    from fastapi import HTTPException
+    page_size = limit or DEFAULT_PAGE_SIZE
+    try:
+        offset = int(page_token) if page_token else 0
+        if offset < 0:
+            raise ValueError
+    except ValueError:
+        raise HTTPException(status_code=400, detail={
+            "code": "invalid_page_token", "message": "pageToken is not valid"})
+    page = items[offset:offset + page_size]
+    next_offset = offset + page_size
+    next_token = str(next_offset) if next_offset < len(items) else None
+    return page, next_token
