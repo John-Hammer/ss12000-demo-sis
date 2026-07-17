@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database import get_db
 from ...models.activity import Activity, ActivityTeacher, ActivityGroup
 from ...auth.dependencies import get_current_client
-from ...schemas.common import IdLookup, paginate
+from ...schemas.common import IdLookup, paginate, apply_modified_after
 
 router = APIRouter(prefix="/activities", tags=["Aktiviteter"])
 
@@ -25,6 +25,7 @@ async def list_activities(
     expandReferenceNames: bool = Query(False),
     limit: Optional[int] = Query(None, ge=1),
     pageToken: Optional[str] = Query(None),
+    meta_modified_after: Optional[str] = Query(None, alias="meta.modified.after"),
     db: AsyncSession = Depends(get_db),
     client: dict = Depends(get_current_client),
 ):
@@ -52,6 +53,7 @@ async def list_activities(
     query = query.options(selectinload(Activity.teachers),
                           selectinload(Activity.groups))
     query = query.order_by(Activity.id)
+    query = apply_modified_after(query, Activity, meta_modified_after)
     result = await db.execute(query)
     activities = result.scalars().all()
     activities, next_token = paginate(activities, limit, pageToken)

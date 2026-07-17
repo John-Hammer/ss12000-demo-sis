@@ -96,6 +96,11 @@ class Person(Base):
     enrolments: Mapped[List["Enrolment"]] = relationship("Enrolment", backref="person")
 
     # Guardians (self-referential many-to-many)
+    responsible_links: Mapped[List["PersonResponsible"]] = relationship(
+        "PersonResponsible",
+        primaryjoin=lambda: Person.id == person_responsibles.c.person_id,
+        viewonly=True,
+    )
     responsibles: Mapped[List["Person"]] = relationship(
         "Person",
         secondary=person_responsibles,
@@ -180,12 +185,34 @@ class Person(Base):
                     enrol["endDate"] = e.end_date.isoformat()
                 result["enrolments"].append(enrol)
 
-        if expand_responsibles and self.responsibles:
+        if expand_responsibles and self.responsible_links:
             result["responsibles"] = []
-            for r in self.responsibles:
+            for link in self.responsible_links:
+                r = link.responsible_person
                 result["responsibles"].append({
                     "person": {"id": r.id, "displayName": f"{r.given_name} {r.family_name}"},
-                    "relationType": "Vårdnadshavare"
+                    # actual stored relation (spec RelationTypesEnum), not a hardcoded value
+                    "relationType": link.relation_type or "Vårdnadshavare"
                 })
 
         return result
+
+
+class PersonResponsible(Base):
+    """Association object over person_responsibles — exposes relation_type.
+
+    The plain secondary-table relationship cannot carry the per-pair
+    relation_type, which forced the API to hardcode Vårdnadshavare.
+    """
+    __table__ = person_responsibles
+    __mapper_args__ = {
+        "primary_key": [person_responsibles.c.person_id,
+                        person_responsibles.c.responsible_id],
+    }
+
+    responsible_person: Mapped["Person"] = relationship(
+        "Person",
+        primaryjoin=lambda: person_responsibles.c.responsible_id == Person.id,
+        foreign_keys=[person_responsibles.c.responsible_id],
+        viewonly=True,
+    )

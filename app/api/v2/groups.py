@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database import get_db
 from ...models.group import Group, GroupMembership
 from ...auth.dependencies import get_current_client
-from ...schemas.common import IdLookup, paginate
+from ...schemas.common import IdLookup, paginate, apply_modified_after
 
 router = APIRouter(prefix="/groups", tags=["Grupper"])
 
@@ -23,6 +23,7 @@ async def list_groups(
     expandReferenceNames: bool = Query(False),
     limit: Optional[int] = Query(None, ge=1),
     pageToken: Optional[str] = Query(None),
+    meta_modified_after: Optional[str] = Query(None, alias="meta.modified.after"),
     db: AsyncSession = Depends(get_db),
     client: dict = Depends(get_current_client),
 ):
@@ -44,6 +45,7 @@ async def list_groups(
     # returned (expand is for _embedded assignmentRoles). expand tolerated.
     query = query.options(selectinload(Group.memberships)).order_by(Group.id)
 
+    query = apply_modified_after(query, Group, meta_modified_after)
     result = await db.execute(query)
     groups = result.scalars().all()
     groups, next_token = paginate(groups, limit, pageToken)

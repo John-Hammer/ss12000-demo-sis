@@ -116,3 +116,18 @@ def paginate(items, limit, page_token):
     next_offset = offset + page_size
     next_token = str(next_offset) if next_offset < len(items) else None
     return page, next_token
+
+
+def apply_modified_after(query, model, value):
+    """Apply the spec's meta.modified.after filter to a query, or 400."""
+    if not value:
+        return query
+    from datetime import datetime
+    from fastapi import HTTPException
+    try:
+        after = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail={
+            "code": "invalid_filter",
+            "message": "meta.modified.after is not a valid timestamp"})
+    return query.filter(model.modified_at > after)

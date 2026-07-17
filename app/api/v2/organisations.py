@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database import get_db
 from ...models.organisation import Organisation
 from ...auth.dependencies import get_current_client
-from ...schemas.common import IdLookup, paginate
+from ...schemas.common import IdLookup, paginate, apply_modified_after
 
 router = APIRouter(prefix="/organisations", tags=["Organisation"])
 
@@ -24,6 +24,7 @@ async def list_organisations(
     expandReferenceNames: bool = Query(False),
     limit: Optional[int] = Query(None, ge=1),
     pageToken: Optional[str] = Query(None),
+    meta_modified_after: Optional[str] = Query(None, alias="meta.modified.after"),
     db: AsyncSession = Depends(get_db),
     client: dict = Depends(get_current_client),
 ):
@@ -43,6 +44,7 @@ async def list_organisations(
         query = query.filter(Organisation.organisation_type.in_(type))
 
     query = query.order_by(Organisation.id)
+    query = apply_modified_after(query, Organisation, meta_modified_after)
     result = await db.execute(query)
     organisations = result.scalars().all()
     organisations, next_token = paginate(organisations, limit, pageToken)

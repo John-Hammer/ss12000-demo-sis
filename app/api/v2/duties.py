@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...database import get_db
 from ...models.duty import Duty, DutyAssignment
 from ...auth.dependencies import get_current_client
-from ...schemas.common import IdLookup, paginate
+from ...schemas.common import IdLookup, paginate, apply_modified_after
 
 router = APIRouter(prefix="/duties", tags=["Duty"])
 
@@ -23,6 +23,7 @@ async def list_duties(
     expandReferenceNames: bool = Query(False),
     limit: Optional[int] = Query(None, ge=1),
     pageToken: Optional[str] = Query(None),
+    meta_modified_after: Optional[str] = Query(None, alias="meta.modified.after"),
     db: AsyncSession = Depends(get_db),
     client: dict = Depends(get_current_client),
 ):
@@ -45,6 +46,7 @@ async def list_duties(
     )
 
     query = query.order_by(Duty.id)
+    query = apply_modified_after(query, Duty, meta_modified_after)
     result = await db.execute(query)
     duties = result.scalars().all()
     duties, next_token = paginate(duties, limit, pageToken)

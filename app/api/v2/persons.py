@@ -8,9 +8,9 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database import get_db
-from ...models.person import Person, Enrolment
+from ...models.person import Person, Enrolment, PersonResponsible
 from ...auth.dependencies import get_current_client
-from ...schemas.common import IdLookup, paginate
+from ...schemas.common import IdLookup, paginate, apply_modified_after
 
 router = APIRouter(prefix="/persons", tags=["Person"])
 
@@ -21,6 +21,7 @@ async def list_persons(
     expandReferenceNames: bool = Query(False),
     limit: Optional[int] = Query(None, ge=1),
     pageToken: Optional[str] = Query(None),
+    meta_modified_after: Optional[str] = Query(None, alias="meta.modified.after"),
     db: AsyncSession = Depends(get_db),
     client: dict = Depends(get_current_client),
 ):
@@ -36,8 +37,10 @@ async def list_persons(
     # so they are always loaded and always returned. expand is tolerated.
     query = (select(Person)
              .options(selectinload(Person.enrolments),
-                      selectinload(Person.responsibles))
+                      selectinload(Person.responsible_links)
+                      .selectinload(PersonResponsible.responsible_person))
              .order_by(Person.id))
+    query = apply_modified_after(query, Person, meta_modified_after)
 
     result = await db.execute(query)
     persons = result.scalars().all()
@@ -69,7 +72,8 @@ async def get_person(
         if "enrolments" in expand:
             query = query.options(selectinload(Person.enrolments))
         if "responsibles" in expand:
-            query = query.options(selectinload(Person.responsibles))
+            query = query.options(selectinload(Person.responsible_links)
+                                  .selectinload(PersonResponsible.responsible_person))
 
     result = await db.execute(query)
     person = result.scalar_one_or_none()
@@ -104,7 +108,8 @@ async def lookup_persons(
         if "enrolments" in expand:
             query = query.options(selectinload(Person.enrolments))
         if "responsibles" in expand:
-            query = query.options(selectinload(Person.responsibles))
+            query = query.options(selectinload(Person.responsible_links)
+                                  .selectinload(PersonResponsible.responsible_person))
 
     result = await db.execute(query)
     persons = result.scalars().all()
