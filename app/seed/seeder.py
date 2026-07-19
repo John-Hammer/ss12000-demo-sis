@@ -24,10 +24,11 @@ from ..models.person import Person, Enrolment, person_responsibles
 from ..models.group import Group, GroupMembership
 from ..models.duty import Duty, DutyAssignment
 from ..models.activity import Activity, ActivityTeacher, ActivityGroup
+from ..models.schedule_slot import ActivityScheduleSlot
 from ..models.seed_meta import SeedMeta
 
 DATA_SOURCE = os.environ.get("DEMO_SEED_DATA", "minimal")
-DATASET_VERSION = "2"  # 2: spec-aligned duty roles + EHT assignmentRoles
+DATASET_VERSION = "3"  # 3: weekly schedule slots (calendarEvents support)
 
 if DATA_SOURCE == "minimal":
     try:
@@ -130,9 +131,11 @@ async def seed_database():
         # 8. Create group memberships
         await seed_memberships(session)
 
-        # 9. Create activities (if available)
+        # 9. Create activities (if available) + their weekly schedule
+        #    slots (the source for /calendarEvents)
         if ACTIVITIES_DATA:
             await seed_activities(session)
+            await seed_schedule_slots(session)
 
         # 10. Mark two students as protected (for sekretessmarkering testing)
         await seed_protected_students(session)
@@ -488,6 +491,61 @@ async def seed_activities(session: AsyncSession):
             session.add(group)
 
     await session.flush()
+
+
+async def seed_schedule_slots(session: AsyncSession):
+    """Give every activity 1-3 weekly schedule slots (hash-deterministic
+    from the activity id, so reseeds produce identical schedules).
+
+    The second activity of each group gets its first slot forced to
+    overlap the first activity's slot by 30 minutes — this guarantees
+    every class has at least one side-by-side overlap on the schedule
+    UI, which is exactly the layout case the demo needs to show off.
+    """
+    import hashlib
+    print("  Creating schedule slots...")
+
+    def h(key: str) -> int:
+        return int(hashlib.md5(key.encode()).hexdigest(), 16)
+
+    slots = []
+
+    def add_slot(activity_id: str, day: int, start_min: int, duration: int, salt: str):
+        end_min = min(start_min + duration, 17 * 60)
+        slots.append(ActivityScheduleSlot(
+            activity_id=activity_id,
+            day_of_week=day,
+            start_time=f"{start_min // 60:02d}:{start_min % 60:02d}",
+            end_time=f"{end_min // 60:02d}:{end_min % 60:02d}",
+            room=f"Sal {1 + h(f'{activity_id}:room:{salt}') % 24}",
+        ))
+
+    # first group id -> (day, start_min) of its first activity's first
+    # slot, replaced by True once an overlap has been forced.
+    group_anchor = {}
+    for act_data in ACTIVITIES_DATA:
+        activity_id = act_data["id"]
+        group_ids = act_data.get("group_ids", [])
+        gid = group_ids[0] if group_ids else None
+        n_slots = 1 + h(activity_id) % 3
+        for n in range(n_slots):
+            hh = h(f"{activity_id}:{n}")
+            day = 1 + hh % 5
+            start_min = 8 * 60 + (hh // 7 % 15) * 30  # 08:00 .. 15:00
+            duration = (45, 60, 60, 90)[hh // 997 % 4]
+            if n == 0 and gid is not None:
+                anchor = group_anchor.get(gid)
+                if anchor is None:
+                    group_anchor[gid] = (day, start_min)
+                elif anchor is not True:
+                    day, start_min = anchor
+                    start_min += 30  # guaranteed overlap with the anchor
+                    group_anchor[gid] = True
+            add_slot(activity_id, day, start_min, duration, str(n))
+
+    session.add_all(slots)
+    await session.flush()
+    print(f"    {len(slots)} schedule slots")
 
 
 async def seed_protected_students(session: AsyncSession):

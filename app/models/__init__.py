@@ -4,6 +4,7 @@ from .person import Person
 from .group import Group, GroupMembership
 from .duty import Duty
 from .activity import Activity, ActivityTeacher, ActivityGroup
+from .schedule_slot import ActivityScheduleSlot
 from .seed_meta import SeedMeta
 
 from .deleted_entity import DeletedEntity  # noqa
