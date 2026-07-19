@@ -3,16 +3,19 @@ Minimal KISS demo dataset — two classes, hand-curated.
 
 One full class (7A, 30 students) plus a smaller grade-8 class
 (8A, 15 students) at a single school unit:
-  - 5 teachers; Sara Lindqvist is mentor for all of 7A, Erik Sandberg
-    is mentor for all of 8A
+  - 5 teachers; Sara Lindqvist is mentor for all of 7A, Maria Holmgren
+    is mentor for all of 8A. Erik Sandberg deliberately mentors NOBODY:
+    he is the demo_larare persona, and a pure subject teacher is what
+    demonstrates teaching-based least-privilege access (a teacher sees
+    only what their teaching relationship grants — the GDPR story).
   - 1 EHT (kurator), 1 skolledare (rektor), 1 generic staff (administratör)
   - ~2 guardians per student (a few single-guardian households)
   - 5 teaching groups for 7A (SV7, MA7, EN7, NO7, IDH7) — every 7A student
     in each, one teacher per group, with matching activities
   - 2 teaching groups for 8A (SV8 taught by Sara, MA8 taught by Erik) —
-    deliberately sparse; they exist so the two main demo personas each have
-    a teaching group whose students they do NOT mentor (the dashboard's
-    Teaching Groups widget is meaningless when it mirrors the mentor class)
+    deliberately sparse; they give both main demo personas a teaching
+    group whose students they do NOT mentor (the dashboard's Teaching
+    Groups widget is meaningless when it mirrors the mentor class)
 
 All UUIDs are uuid5-derived from external_id, so they are stable across
 reseeds. The four demo login personas in the main skolSköld app
@@ -27,7 +30,7 @@ from datetime import date
 
 NAMESPACE = uuid.UUID('a1b2c3d4-e5f6-7890-abcd-ef1234567890')
 
-DATASET_VERSION = '5'  # 5: weekly schedule slots (calendarEvents support)
+DATASET_VERSION = '6'  # 6: 8A mentor moved Erik→Maria (pure-teacher persona)
 
 
 def _uid(key: str) -> str:
@@ -94,8 +97,8 @@ _UNIT = ORGS['grundskola']
 # (ext_id, given, family, duty_role, sex, birth_date)
 _STAFF_DEFS = [
     ('1001', 'Sara', 'Lindqvist', 'Lärare', 'Kvinna', date(1985, 3, 12)),   # mentor 7A + SV7/SV8
-    ('1002', 'Erik', 'Sandberg', 'Lärare', 'Man', date(1979, 9, 4)),        # mentor 8A + MA7/MA8
-    ('1003', 'Maria', 'Holmgren', 'Lärare', 'Kvinna', date(1990, 6, 21)),   # EN7
+    ('1002', 'Erik', 'Sandberg', 'Lärare', 'Man', date(1979, 9, 4)),        # MA7/MA8 — NO mentor class (pure-teacher persona)
+    ('1003', 'Maria', 'Holmgren', 'Lärare', 'Kvinna', date(1990, 6, 21)),   # EN7 + mentor 8A
     ('1004', 'Johan', 'Ek', 'Lärare', 'Man', date(1983, 1, 30)),            # NO7
     ('1005', 'Anna', 'Bergström', 'Lärare', 'Kvinna', date(1994, 11, 8)),   # IDH7
     ('1006', 'Eva', 'Ström', 'Kurator', 'Kvinna', date(1976, 4, 17)),       # EHT
@@ -126,7 +129,7 @@ for _ext, _given, _family, _role, _sex, _born in _STAFF_DEFS:
 _STAFF_BY_EXT = {s['external_id']: s['id'] for s in STAFF}
 
 MENTOR_ID = _STAFF_BY_EXT['1001']
-MENTOR_8A_ID = _STAFF_BY_EXT['1002']
+MENTOR_8A_ID = _STAFF_BY_EXT['1003']  # Maria Holmgren — NOT the demo_larare persona
 
 
 # ---------------------------------------------------------------------------
