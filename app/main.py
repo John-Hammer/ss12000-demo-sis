@@ -51,6 +51,28 @@ async def health_check():
     return {"status": "healthy", "service": "fake_sis", "version": settings.api_version}
 
 
+@app.get("/comvius/sample.zip")
+async def comvius_sample():
+    """
+    Serve the anonymised Comvius export for the demo's migration wizard.
+
+    Lives here rather than in the Skolsköld repo on purpose: names and
+    personnummer are replaced, but the incident and referral free-text is a
+    genuine extract, so it must not ship inside the product image that runs
+    on every school's node. Only the demo fetches this.
+    """
+    from pathlib import Path
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+
+    sample = Path(__file__).resolve().parent.parent / "comvius_anon.zip"
+    if not sample.exists():
+        raise HTTPException(status_code=404, detail="No Comvius sample on this instance")
+    return FileResponse(
+        sample, media_type="application/zip", filename="comvius_sample.zip"
+    )
+
+
 @app.get("/")
 async def root():
     """Root endpoint with API info."""
