@@ -15,6 +15,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app/ ./app/
 
+# Anonymised Comvius export served at /comvius/sample.zip for Skolsköld's
+# demo migration wizard. Optional: the route 404s cleanly without it.
+COPY comvius_anon.zip ./comvius_anon.zip
+
 # Create data directory for SQLite
 RUN mkdir -p /app/data
 
