@@ -364,10 +364,13 @@ async def seed_duties(session: AsyncSession):
         # like a real huvudman often does.
         description = staff_data.get("description") or seed_role
 
-        # Create duty at the main school
+        # Duty at the staff member's school unit when the dataset says
+        # so (multi-unit datasets like lotr); otherwise the main school
+        # org — spec-realistic either way, and consumers must handle
+        # school-level duties (ambiguous across several units).
         duty = Duty(
             person_id=staff_data["id"],
-            organisation_id=school_org_id,
+            organisation_id=staff_data.get("school_unit_id") or school_org_id,
             duty_role=spec_role,
             description=description,
             signature=staff_data.get("signature"),
