@@ -40,6 +40,17 @@ if DATA_SOURCE == "lotr":
     except ImportError:
         DATA_SOURCE = "minimal"  # fall back
 
+# Single-school LOTR views: one Rivendell school per instance, so each can
+# run as its own SS12000 endpoint for per-school sync testing.
+if DATA_SOURCE in ("lotr_gr", "lotr_gy"):
+    try:
+        from .lotr_school_data import build as _build_lotr_school
+        (ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
+         TEACHING_GROUPS_DATA, ACTIVITIES_DATA,
+         ORGS, PERSONS, GROUPS, TEACHING_GROUPS) = _build_lotr_school(DATA_SOURCE)
+    except ImportError:
+        DATA_SOURCE = "minimal"  # fall back
+
 if DATA_SOURCE == "minimal":
     try:
         from .minimal_data import (
