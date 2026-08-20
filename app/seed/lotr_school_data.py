@@ -43,17 +43,29 @@ def build(which):
     activities = [a for a in _l.ACTIVITIES_DATA
                   if any(gid in keep_teach_ids for gid in a.get('group_ids', []))]
 
-    # Staff: class mentors + activity teachers here + anyone placed at the unit.
+    # Every id a kept student names as a guardian must resolve to a *person*
+    # in this slice — the seeder inserts a responsible link per guardian_id
+    # regardless, so a dropped person leaves a dangling link. In LOTR a few
+    # guardians are staff members (a teacher who is also a parent); include
+    # them even when they don't mentor/teach here, exactly as the combined
+    # dataset does (staff are always seeded as persons).
+    guardian_ids = set()
+    for s in students:
+        guardian_ids.update(s.get('guardian_ids', []))
+    all_staff_ids = {s['id'] for s in _l.STAFF}
+    staff_parents = guardian_ids & all_staff_ids
+
+    # Staff: class mentors + activity teachers here + anyone placed at the
+    # unit + staff who are also a kept student's guardian.
     staff_ids = {g['mentor_id'] for g in groups_data if g.get('mentor_id')}
     for a in activities:
         staff_ids.update(a.get('teacher_ids', []))
     staff_ids.update(s['id'] for s in _l.STAFF if s.get('school_unit_id') == target)
+    staff_ids |= staff_parents
     staff = [s for s in _l.STAFF if s['id'] in staff_ids]
 
-    # Guardians of the kept students.
-    guardian_ids = set()
-    for s in students:
-        guardian_ids.update(s.get('guardian_ids', []))
+    # Guardians of the kept students (the non-staff ones — staff-parents are
+    # materialised via the staff list above).
     guardians = [g for g in _l.GUARDIANS if g['id'] in guardian_ids]
 
     # The id registries stay whole — they are lookup tables; only referenced

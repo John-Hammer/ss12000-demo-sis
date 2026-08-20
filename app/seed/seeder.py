@@ -28,7 +28,7 @@ from ..models.schedule_slot import ActivityScheduleSlot
 from ..models.seed_meta import SeedMeta
 
 DATA_SOURCE = os.environ.get("DEMO_SEED_DATA", "minimal")
-DATASET_VERSION = "3"  # 3: weekly schedule slots (calendarEvents support)
+DATASET_VERSION = "4"  # 4: single-school slices include staff-parents (no dangling guardian links)
 
 if DATA_SOURCE == "lotr":
     try:

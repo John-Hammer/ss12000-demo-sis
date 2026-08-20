@@ -189,6 +189,10 @@ class Person(Base):
             result["responsibles"] = []
             for link in self.responsible_links:
                 r = link.responsible_person
+                if r is None:
+                    # Dangling link (responsible person not in this dataset) —
+                    # skip rather than 500. A real SS12000 feed never emits one.
+                    continue
                 result["responsibles"].append({
                     "person": {"id": r.id, "displayName": f"{r.given_name} {r.family_name}"},
                     # actual stored relation (spec RelationTypesEnum), not a hardcoded value
