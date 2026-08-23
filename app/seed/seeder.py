@@ -51,6 +51,17 @@ if DATA_SOURCE in ("lotr_gr", "lotr_gy"):
     except ImportError:
         DATA_SOURCE = "minimal"  # fall back
 
+if DATA_SOURCE == "kommun":
+    try:
+        from .kommun_data import (
+            ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
+            TEACHING_GROUPS_DATA, ACTIVITIES_DATA,
+            ORGS, PERSONS, GROUPS, TEACHING_GROUPS,
+            DATASET_VERSION,
+        )
+    except ImportError:
+        DATA_SOURCE = "minimal"  # fall back
+
 if DATA_SOURCE == "minimal":
     try:
         from .minimal_data import (
