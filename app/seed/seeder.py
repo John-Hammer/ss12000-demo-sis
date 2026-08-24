@@ -51,6 +51,18 @@ if DATA_SOURCE in ("lotr_gr", "lotr_gy"):
     except ImportError:
         DATA_SOURCE = "minimal"  # fall back
 
+# Single-school Tallviken views: one school unit per instance, so each can
+# run as its own SS12000 endpoint for the kommun demo's per-school syncs.
+if DATA_SOURCE in ("kommun_tallvik", "kommun_bjorkangen", "kommun_gymnasiet"):
+    try:
+        from .kommun_data import DATASET_VERSION
+        from .kommun_school_data import build as _build_kommun_school
+        (ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
+         TEACHING_GROUPS_DATA, ACTIVITIES_DATA,
+         ORGS, PERSONS, GROUPS, TEACHING_GROUPS) = _build_kommun_school(DATA_SOURCE)
+    except ImportError:
+        DATA_SOURCE = "minimal"  # fall back
+
 if DATA_SOURCE == "kommun":
     try:
         from .kommun_data import (
