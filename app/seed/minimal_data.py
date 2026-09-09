@@ -30,7 +30,7 @@ from datetime import date
 
 NAMESPACE = uuid.UUID('a1b2c3d4-e5f6-7890-abcd-ef1234567890')
 
-DATASET_VERSION = '6'  # 6: 8A mentor moved Erik→Maria (pure-teacher persona)
+DATASET_VERSION = '7'  # 7: v2.1 duty roles (Kurator as dutyRole); 6: 8A mentor moved Erik→Maria (pure-teacher persona)
 
 
 def _uid(key: str) -> str:
