@@ -38,17 +38,32 @@ class SchoolType(str, Enum):
 
 
 class DutyRole(str, Enum):
-    """Staff roles — the spec's Code_DutyRole has EXACTLY these six.
-
-    There is no health-team dutyRole in SS12000: EHT-ness travels as an
-    assignmentRole (Elevhälsopersonal / Specialpedagog) on the duty.
+    """Staff roles — Code_DutyRole v2.1.0 (corrigendum Aug 2022): NINETEEN
+    values, aligned with Skolverket's code-duty-role vocabulary. v2.0 had
+    six; the health-team roles are duty roles since 2.1, and the two
+    v2.0 leftovers are deprecated. EHT-ness ALSO travels as an
+    assignmentRole (Elevhälsopersonal / Specialpedagog) on the duty, the
+    way a v2.0-shaped source sends it.
     """
     REKTOR = "Rektor"
     LARARE = "Lärare"
     FORSKOLLARARE = "Förskollärare"
-    OVRIG_PEDAGOGISK_PERSONAL = "Övrig pedagogisk personal"
-    FORSKOLECHEF = "Förskolechef"
+    BARNSKOTARE = "Barnskötare"
+    BIBLIOTEKARIE = "Bibliotekarie"
+    LARARASSISTENT = "Lärarassistent"
+    FRITIDSPEDAGOG = "Fritidspedagog"
     ANNAN_PERSONAL = "Annan personal"
+    STUDIE_OCH_YRKESVAGLEDARE = "Studie- och yrkesvägledare"
+    FORSTELARARE = "Förstelärare"
+    KURATOR = "Kurator"
+    SKOLSKOTERSKA = "Skolsköterska"
+    SKOLLAKARE = "Skolläkare"
+    SKOLPSYKOLOG = "Skolpsykolog"
+    SPECIALLARARE_SPECIALPEDAGOG = "Speciallärare/specialpedagog"
+    SKOLADMINISTRATOR = "Skoladministratör"
+    OVRIG_ARBETSLEDNING = "Övrig arbetsledning"
+    OVRIG_PEDAGOGISK_PERSONAL = "Övrig pedagogisk personal"   # deprecated in 2.1
+    FORSKOLECHEF = "Förskolechef"                             # deprecated in 2.1
 
 
 class GroupType(str, Enum):

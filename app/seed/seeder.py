@@ -28,7 +28,7 @@ from ..models.schedule_slot import ActivityScheduleSlot
 from ..models.seed_meta import SeedMeta
 
 DATA_SOURCE = os.environ.get("DEMO_SEED_DATA", "minimal")
-DATASET_VERSION = "4"  # 4: single-school slices include staff-parents (no dangling guardian links)
+DATASET_VERSION = "5"  # 5: duty roles on Code_DutyRole v2.1.0 (Kurator etc. as dutyRole, not only assignmentRole)
 
 if DATA_SOURCE == "lotr":
     try:
@@ -375,21 +375,31 @@ async def seed_duties(session: AsyncSession):
     if not school_org_id:
         school_org_id = ORGANISATIONS[0]["id"]
 
-    # Spec Code_DutyRole has exactly six values — rich seed roles are
-    # translated the way a real SIS must express them, and the EHT-ness
-    # travels as an assignmentRole (Elevhälsopersonal / Specialpedagog),
-    # which is where SS12000 actually carries it.
-    SPEC_DUTY_ROLE = {
-        "Rektor": "Rektor",
-        "Biträdande rektor": "Rektor",
-        "Lärare": "Lärare",
-        "Förskollärare": "Förskollärare",
-        "Förskolechef": "Förskolechef",
-        "Specialpedagog": "Övrig pedagogisk personal",
-        "Speciallärare/specialpedagog": "Övrig pedagogisk personal",
-        "Fritidspedagog": "Övrig pedagogisk personal",
-        "Lärarassistent": "Övrig pedagogisk personal",
+    # Code_DutyRole v2.1.0 (corrigendum Aug 2022) has NINETEEN values,
+    # aligned with Skolverket's vocabulary — the health-team roles are
+    # duty roles now. Seed roles that ARE a spec code pass through; the
+    # non-conforming ones are translated the way a real SIS must express
+    # them. The EHT-ness ALSO travels as an assignmentRole
+    # (Elevhälsopersonal / Specialpedagog), as a v2.0-shaped source sends
+    # it, so consumers get both signals.
+    SPEC_DUTY_ROLES = {
+        "Rektor", "Lärare", "Förskollärare", "Barnskötare", "Bibliotekarie",
+        "Lärarassistent", "Fritidspedagog", "Annan personal",
+        "Studie- och yrkesvägledare", "Förstelärare", "Kurator", "Skolsköterska",
+        "Skolläkare", "Skolpsykolog", "Speciallärare/specialpedagog",
+        "Skoladministratör", "Övrig arbetsledning", "Övrig pedagogisk personal",
+        "Förskolechef",
     }
+    SPEC_DUTY_ROLE = {code: code for code in SPEC_DUTY_ROLES}
+    SPEC_DUTY_ROLE.update({
+        "Biträdande rektor": "Rektor",
+        "Specialpedagog": "Speciallärare/specialpedagog",
+        "Speciallärare": "Speciallärare/specialpedagog",
+        "Psykolog": "Skolpsykolog",
+        "Elevassistent": "Lärarassistent",
+        "Barnskötare/Elevassistent": "Lärarassistent",
+        "Administratör": "Skoladministratör",
+    })
     EHT_ASSIGNMENT = {
         "Kurator": "Elevhälsopersonal",
         "Skolsköterska": "Elevhälsopersonal",
