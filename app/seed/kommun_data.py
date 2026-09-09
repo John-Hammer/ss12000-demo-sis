@@ -25,7 +25,7 @@ from .svenska_namn import (
     STREET_NAMES,
 )
 
-DATASET_VERSION = "1"
+DATASET_VERSION = "2"
 
 _NS = uuid.uuid5(uuid.NAMESPACE_DNS, "kommun-demo.skolshield.se")
 _rng = random.Random(20260823)
