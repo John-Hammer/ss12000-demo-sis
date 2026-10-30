@@ -43,6 +43,7 @@ the SS12000 integration.
 | `GET /v2/persons` | List all persons (students, staff, guardians) |
 | `GET /v2/groups` | List all groups/classes |
 | `GET /v2/duties` | List staff duty assignments |
+| `GET /scenario`, `POST /scenario/{name}` | Register scenario held / flip it; `/scenario/{name}/v2/...` serves the API in that state (kommun views only, see CLAUDE.md) |
 
 ## Authentication
 
