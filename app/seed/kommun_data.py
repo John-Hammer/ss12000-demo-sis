@@ -363,3 +363,45 @@ for s in STUDENTS:
         year = int(s["civic_no"][:4])
         s["birth_date"] = date(year, int(s["civic_no"][4:6]),
                                int(s["civic_no"][6:8]))
+
+
+# ---------------------------------------------------------------- scenarios
+# "Next states" of the register, for the films (series C1 `elevregistret`,
+# 2026-10-30). A per-school instance serves the base roster under /v2 and a
+# scenario's roster under /scenario/<name>/v2 (app.main), reseeding itself
+# when the state asked for differs from the one it holds — so the state is
+# switched by pointing a sync source at the other URL, no rebuild, no env
+# var. Base data above is untouched; a scenario is a projection of it.
+#
+# `moved`: one Tallvik pupil has moved to Björkängen. Ebba Karlsson (STU091,
+# Klass 6A) leaves Tallvik's feed and appears in Björkängen's with the SAME
+# person id, in Klass 7A, school year 7 (Björkängen is åk 7–9). The product
+# side matches her by civic number across the two per-school sources and
+# records the move; `seed_kommun_story` seeds her open case so the film can
+# show what a move does to a case.
+MOVED_STUDENT_EXTERNAL_ID = "STU091"
+SCENARIOS = {
+    "moved": {
+        "student_external_id": MOVED_STUDENT_EXTERNAL_ID,
+        "to_unit": ORGS["bjorkangen_gr"],
+        "to_group": GROUPS["bjorkangen_gr_7A"],
+        "school_year": 7,
+    },
+}
+
+
+def students_for(scenario=None):
+    """STUDENTS with ``scenario`` applied: a new list of copies, the base
+    data untouched. The moved pupil goes LAST so the seeder's "first two
+    pupils are protected" rule (seed_protected_students) never lands on
+    her at the receiving school."""
+    if scenario in (None, "", "base"):
+        return [dict(s) for s in STUDENTS]
+    spec = SCENARIOS[scenario]
+    ext = spec["student_external_id"]
+    out = [dict(s) for s in STUDENTS if s["external_id"] != ext]
+    moved = dict(next(s for s in STUDENTS if s["external_id"] == ext))
+    moved.update(school_unit_id=spec["to_unit"], group_id=spec["to_group"],
+                 school_year=spec["school_year"])
+    out.append(moved)
+    return out

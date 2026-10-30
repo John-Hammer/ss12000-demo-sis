@@ -7,7 +7,8 @@ provisions a webapp+API per school). Selected via
 ``DEMO_SEED_DATA=kommun_tallvik`` / ``kommun_bjorkangen`` /
 ``kommun_gymnasiet``. Derived from ``kommun_data`` so the three
 single-school views and the combined dataset stay consistent (one source
-of truth). Mirrors lotr_school_data.build().
+of truth). Mirrors lotr_school_data.build(). Since 2026-10-30 a scenario
+(``kommun_data.SCENARIOS``) can be projected instead of the base state.
 """
 from . import kommun_data as _k
 
@@ -26,9 +27,13 @@ _PARENT_SKOLA = {
 }
 
 
-def build(which):
-    """Return the seeder's data-module tuple for one Tallviken school."""
+def build(which, scenario=None):
+    """Return the seeder's data-module tuple for one Tallviken school.
+    ``scenario`` (kommun_data.SCENARIOS, default base) projects a "next
+    state" of the register instead: the moved pupil leaves one school's
+    slice and appears in the other's, same person id."""
     target = _UNIT[which]
+    all_students = _k.students_for(scenario)
 
     # Org tree: Huvudman -> the school's Skola node -> the target Skolenhet.
     keep_orgs = {_k.ORGS['huvudman'], _PARENT_SKOLA[target], target}
@@ -37,7 +42,7 @@ def build(which):
     groups_data = [g for g in _k.GROUPS_DATA
                    if g.get('organisation_id') == target]
     keep_class_ids = {g['id'] for g in groups_data}
-    students = [s for s in _k.STUDENTS
+    students = [s for s in all_students
                 if s.get('group_id') in keep_class_ids
                 or s.get('school_unit_id') == target]
 

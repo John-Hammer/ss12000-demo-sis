@@ -13,6 +13,7 @@ table). If the deployed code carries a different dataset or version, the
 database is wiped and reseeded automatically on startup — so pushing a new
 dataset updates the online demo SIS despite the persistent volume.
 """
+import asyncio
 import os
 from datetime import date
 from sqlalchemy import select
@@ -53,9 +54,14 @@ if DATA_SOURCE in ("lotr_gr", "lotr_gy"):
 
 # Single-school Tallviken views: one school unit per instance, so each can
 # run as its own SS12000 endpoint for the kommun demo's per-school syncs.
+# Register scenarios ("next states" for the films, 2026-10-30): only the
+# per-school Tallviken views carry any. See `ensure_scenario` below.
+SCENARIOS = {}
+_build_kommun_school = None
+
 if DATA_SOURCE in ("kommun_tallvik", "kommun_bjorkangen", "kommun_gymnasiet"):
     try:
-        from .kommun_data import DATASET_VERSION
+        from .kommun_data import DATASET_VERSION, SCENARIOS
         from .kommun_school_data import build as _build_kommun_school
         (ORGANISATIONS, STAFF, STUDENTS, GUARDIANS, GROUPS_DATA,
          TEACHING_GROUPS_DATA, ACTIVITIES_DATA,
@@ -122,18 +128,41 @@ async def _current_stamp(session: AsyncSession):
     return row.value if row else None
 
 
+async def _current_scenario(session: AsyncSession):
+    """The register scenario the DB holds ('base' when unstamped)."""
+    result = await session.execute(
+        select(SeedMeta).filter(SeedMeta.key == "scenario")
+    )
+    row = result.scalar_one_or_none()
+    return row.value if row else "base"
+
+
+# The scenario the DB holds right now (read once at startup, kept in step by
+# reseed); the lock serialises reseeds behind concurrent API requests.
+_scenario = None
+_reseed_lock = asyncio.Lock()
+
+
+def current_scenario():
+    return _scenario or "base"
+
+
 async def seed_database():
     """
     Seed the database if it is empty, or wipe and reseed if it was seeded
-    with a different dataset/version than the code now carries.
+    with a different dataset/version than the code now carries. A DB that
+    matches keeps whatever register scenario it holds.
     """
+    global _scenario
     async with async_session_maker() as session:
         stamp = await _current_stamp(session)
         result = await session.execute(select(Organisation).limit(1))
         has_data = result.scalar_one_or_none() is not None
 
         if has_data and stamp == DATASET_STAMP:
-            print(f"Database already seeded with {DATASET_STAMP}, skipping...")
+            _scenario = await _current_scenario(session)
+            print(f"Database already seeded with {DATASET_STAMP} "
+                  f"(scenario {_scenario}), skipping...")
             return
 
         if has_data:
@@ -141,6 +170,45 @@ async def seed_database():
             await drop_tables()
             await create_tables()
 
+    await _seed_all("base")
+
+
+async def ensure_scenario(name: str):
+    """Make the DB hold register scenario ``name`` ('base' or a key of
+    SCENARIOS), reseeding when it holds another. Raises KeyError for a
+    name this dataset does not define. Called on every /v2 request by
+    app.main, so a sync source pointed at /scenario/<name>/v2 flips the
+    instance by itself and one pointed back at /v2 flips it back."""
+    if name != "base" and name not in SCENARIOS:
+        raise KeyError(name)
+    if current_scenario() == name:
+        return
+    async with _reseed_lock:
+        if current_scenario() == name:
+            return
+        print(f"Register scenario {current_scenario()} -> {name}: reseeding...")
+        await drop_tables()
+        await create_tables()
+        await _seed_all(name)
+
+
+def _load_scenario(name: str):
+    """Rebind the module's data tables to the scenario's projection (the
+    seed_* steps read the module globals). Only the per-school Tallviken
+    views project scenarios; every other dataset is its own base."""
+    if _build_kommun_school is None:
+        return
+    g = globals()
+    (g["ORGANISATIONS"], g["STAFF"], g["STUDENTS"], g["GUARDIANS"],
+     g["GROUPS_DATA"], g["TEACHING_GROUPS_DATA"], g["ACTIVITIES_DATA"],
+     g["ORGS"], g["PERSONS"], g["GROUPS"], g["TEACHING_GROUPS"]) = \
+        _build_kommun_school(DATA_SOURCE, None if name == "base" else name)
+
+
+async def _seed_all(scenario: str):
+    """Every seeding step into empty tables, then the dataset + scenario stamps."""
+    global _scenario
+    _load_scenario(scenario)
     async with async_session_maker() as session:
         source_labels = {
             "minimal": "minimal KISS (one class)",
@@ -148,7 +216,7 @@ async def seed_database():
             "carlssons": "Carlssons/Ekbergsskolan",
         }
         source_label = source_labels.get(DATA_SOURCE, DATA_SOURCE)
-        print(f"Seeding database with {source_label} demo data...")
+        print(f"Seeding database with {source_label} demo data (scenario {scenario})...")
 
         # 1. Create organisations
         await seed_organisations(session)
@@ -184,10 +252,12 @@ async def seed_database():
         # 10. Mark two students as protected (for sekretessmarkering testing)
         await seed_protected_students(session)
 
-        # 11. Stamp the DB with the dataset name + version
+        # 11. Stamp the DB with the dataset name + version, and the scenario
         session.add(SeedMeta(key="dataset", value=DATASET_STAMP))
+        session.add(SeedMeta(key="scenario", value=scenario))
 
         await session.commit()
+        _scenario = scenario
         print("Database seeding complete!")
         print(f"  - {len(STAFF)} staff members")
         print(f"  - {len(STUDENTS)} students")

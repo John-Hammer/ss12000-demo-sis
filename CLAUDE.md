@@ -94,6 +94,27 @@ the seeder turns these into `Lärare` DutyAssignments, which is what makes
 skolSköld's sync populate `Group.teachers` (mentor assignments come from
 the class group's `mentor_id`).
 
+## Register scenarios (the films' "next state", 2026-10-30)
+
+The per-school Tallviken views (`kommun_tallvik` / `kommun_bjorkangen` /
+`kommun_gymnasiet`) can show a **scenario** of the register instead of the
+base roster. The same SS12000 API is mounted twice: `/v2` serves the base
+state and `/scenario/<name>/v2` serves that scenario; the instance reseeds
+itself (a few seconds, under a lock) when a request asks for a state it does
+not hold, and stamps `seed_meta.scenario`. So a Skolshield sync source whose
+API URL ends in `/scenario/moved/v2` sees the scenario on its next run, and
+one pointed back at `/v2` sees the base roster again — no rebuild, no env var.
+`GET /scenario` reports the held state; `POST /scenario/<name>` (bearer token)
+flips it by hand. Scenarios live in `kommun_data.SCENARIOS`
+(`students_for(scenario)` projects them; `kommun_school_data.build(which,
+scenario)` slices the projection):
+
+| Scenario | What changes |
+|---|---|
+| `moved` | Ebba Karlsson (`STU091`, Klass 6A, Tallvik) has moved to Björkängen: she leaves Tallvik's feed and appears in Björkängen's with the same person id, in Klass 7A, school year 7. Series C1 `elevregistret` films the move; `seed_kommun_story` in skolSköld seeds her open case. |
+
+Datasets without scenarios answer 404 under `/scenario/...`.
+
 ## Anonymization Pipeline
 
 Generates `anon_data.py` from a production skolSköld PostgreSQL dump:
